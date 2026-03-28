@@ -1,5 +1,8 @@
 """Automated Market Making strategy implementation."""
 
+from typing import List, Union
+
+from apscheduler.schedulers.background import BackgroundScheduler
 from loguru import logger
 
 from core.ws import PolyWebSocket
@@ -8,95 +11,161 @@ from strategies.base import BaseStrategy
 
 
 class AMMStrategy(BaseStrategy):
-
     """
     Automated Market Making Strategy.
     Places buy/sell limit orders around the mid-price to capture spread.
+    Supports multiple token_ids (one AMM book per market).
     """
+
     def __init__(
         self,
         engine: ExecutionEngine,
         ws: PolyWebSocket,
-        token_id: str,
+        token_ids: Union[str, List[str]],
         spread: float = 0.02,
-        size: int = 100
+        size: int = 100,
+        max_inventory: float = 1000.0,
     ):
-        super().__init__(engine, ws, "AMM")
-        self.token_id = token_id
+        super().__init__(engine, ws, "AMM", token_ids=token_ids)
+
+        # Keep single token_id alias for backwards compatibility
+        self.token_id = self.token_ids[0] if self.token_ids else ""
 
         self.spread = spread
         self.size = size
-        self.last_mid_price: float = 0.0
-        self.inventory: float = 0.0  # Track net shares
-        self.max_inventory: float = 1000.0
+        self.max_inventory = max_inventory
 
+        # Per-market state keyed by token_id
+        self.last_mid_price: dict = {t: 0.0 for t in self.token_ids}
+        self.inventory: dict = {t: 0.0 for t in self.token_ids}
+        self.volatility_multiplier: dict = {t: 1.0 for t in self.token_ids}
+
+        # Sync inventory from on-chain / db at startup
+        for t in self.token_ids:
+            self.inventory[t] = self._sync_inventory(t)
+
+    # ------------------------------------------------------------------
+    # Inventory / state helpers
+    # ------------------------------------------------------------------
+
+    def _sync_inventory(self, token_id: str) -> float:
+        """Pull current on-chain balance for a token at startup."""
+        try:
+            balance = self.engine.client.get_user_balance(token_id)
+            inv = float(balance or 0.0)
+            logger.info(f"[AMM] Synced inventory for {token_id[:10]}…: {inv:.2f}")
+            return inv
+        except Exception as e:
+            logger.warning(f"[AMM] Inventory sync failed for {token_id[:10]}…: {e}")
+            return 0.0
+
+    def _requote(self):
+        """Re-run quoting logic for all active markets (called by scheduler)."""
+        for tid in self.token_ids:
+            if self.last_mid_price.get(tid, 0) > 0:
+                self.on_market_update({
+                    "event_type": "book",
+                    "_requote_market": tid,
+                })
+
+    # ------------------------------------------------------------------
+    # WebSocket callbacks
+    # ------------------------------------------------------------------
 
     def on_market_update(self, data: dict):
-        if data.get("event_type") == "book":
-            # Extract bid/ask from orderbook update
-            bids = data.get("bids", [])
-            asks = data.get("asks", [])
-            
-            if bids and asks:
-                best_bid = float(bids[0][0])
-                best_ask = float(asks[0][0])
-                mid_price = (best_bid + best_ask) / 2
-                self.last_mid_price = mid_price
-                
-                # Volatility widening logic
-                spread = best_ask - best_bid
-                if hasattr(self, 'volatility_multiplier'):
-                    pass
-                else:
-                    self.volatility_multiplier = 1.0
+        if data.get("event_type") != "book":
+            return
 
-                if spread > 0.03:
-                    self.volatility_multiplier = 1.5
-                else:
-                    self.volatility_multiplier = 1.0
-                    
-                actual_spread = self.spread * self.volatility_multiplier
-                
-                # Rebalancing / Inventory dampening
-                bid_adj = 0.0
-                ask_adj = 0.0
-                if self.inventory > self.max_inventory * 0.5: # Too long
-                    bid_adj -= 0.01  
-                    ask_adj -= 0.01
-                elif self.inventory < -self.max_inventory * 0.5: # Too short
-                    bid_adj += 0.01  
-                    ask_adj += 0.01
-                    
-                target_bid = mid_price - (actual_spread / 2) + bid_adj
-                target_ask = mid_price + (actual_spread / 2) + ask_adj
-                
-                logger.debug(
-                    f"[{self.name}] Target Quotes: BID {target_bid:.3f} | "
-                    f"ASK {target_ask:.3f} (Inv: {self.inventory})"
+        # Identify which market this update belongs to
+        market_id = data.get("market") or data.get("_requote_market") or self.token_id
+        if market_id not in self.token_ids:
+            return
+
+        bids = data.get("bids", [])
+        asks = data.get("asks", [])
+
+        if bids and asks:
+            best_bid = float(bids[0][0])
+            best_ask = float(asks[0][0])
+            mid_price = (best_bid + best_ask) / 2
+            self.last_mid_price[market_id] = mid_price
+
+            # Volatility widening
+            raw_spread = best_ask - best_bid
+            self.volatility_multiplier[market_id] = 1.5 if raw_spread > 0.03 else 1.0
+            actual_spread = self.spread * self.volatility_multiplier[market_id]
+
+            # Inventory dampening
+            inv = self.inventory[market_id]
+            bid_adj = ask_adj = 0.0
+            if inv > self.max_inventory * 0.5:        # Too long → push quotes down
+                bid_adj -= 0.01
+                ask_adj -= 0.01
+            elif inv < -self.max_inventory * 0.5:     # Too short → push quotes up
+                bid_adj += 0.01
+                ask_adj += 0.01
+
+            target_bid = mid_price - (actual_spread / 2) + bid_adj
+            target_ask = mid_price + (actual_spread / 2) + ask_adj
+
+            logger.debug(
+                f"[AMM] {market_id[:10]}… BID {target_bid:.3f} | "
+                f"ASK {target_ask:.3f} | Inv: {inv:.1f} | VM: {self.volatility_multiplier[market_id]}"
+            )
+
+            # Execute both sides with full risk check
+            if self.engine.risk_manager.check_trade_allowed(
+                self.name, target_bid, self.size, "BUY"
+            ):
+                self.engine.execute_limit_order(
+                    market_id, target_bid, self.size, "BUY",
+                    self.name, dry_run=self.engine.dry_run
+                )
+            if self.engine.risk_manager.check_trade_allowed(
+                self.name, target_ask, self.size, "SELL"
+            ):
+                self.engine.execute_limit_order(
+                    market_id, target_ask, self.size, "SELL",
+                    self.name, dry_run=self.engine.dry_run
                 )
 
     def on_trade_update(self, data: dict):
-        is_trade = data.get("event_type") == "trade"
-        is_maker = data.get("maker_address") == self.engine.client.address
-        if is_trade and is_maker:
-            # We were filled! Update inventory
-            side = data.get("side")
+        if data.get("event_type") != "trade":
+            return
 
-            size_str = data.get("size")
-            if size_str:
-                size = float(size_str)
-                if side == "BUY":
-                    self.inventory += size
-                else:
-                    self.inventory -= size
-                logger.info(
-                    f"AMM Filled: {side} {size}. "
-                    f"Current Inventory: {self.inventory}"
-                )
+        market_id = data.get("market") or self.token_id
+        if market_id not in self.token_ids:
+            return
+
+        is_maker = data.get("maker_address") == self.engine.client.address
+        if not is_maker:
+            return
+
+        side = data.get("side")
+        size_str = data.get("size")
+        if size_str:
+            size = float(size_str)
+            if side == "BUY":
+                self.inventory[market_id] = self.inventory.get(market_id, 0) + size
+            else:
+                self.inventory[market_id] = self.inventory.get(market_id, 0) - size
+            logger.info(
+                f"[AMM] {market_id[:10]}… Fill: {side} {size}  "
+                f"→ Inventory: {self.inventory[market_id]:.2f}"
+            )
+
+    # ------------------------------------------------------------------
+    # Run
+    # ------------------------------------------------------------------
 
     def run(self):
+        logger.info(f"[AMM] Starting on {len(self.token_ids)} market(s)…")
 
-        logger.info(f"Starting AMM on {self.token_id}...")
-        self.ws.subscribe(self.token_id, "book")
-        self.ws.subscribe(self.token_id, "trades")
-        # In actual implementation, we might poll at intervals to manage orders
+        # Subscribe to all markets (base class already registered callbacks)
+        self.subscribe_all()
+
+        # 15-second re-quoting timer
+        scheduler = BackgroundScheduler()
+        scheduler.add_job(self._requote, "interval", seconds=15)
+        scheduler.start()
+        logger.info("[AMM] Re-quoting scheduler started (15s interval)")

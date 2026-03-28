@@ -1,4 +1,6 @@
-from typing import List, Dict
+"""Logical arbitrage across mutually-exclusive market outcomes."""
+
+from typing import List, Dict, Union
 
 from loguru import logger
 
@@ -6,54 +8,83 @@ from engine.execution import ExecutionEngine
 from core.ws import PolyWebSocket
 from strategies.base import BaseStrategy
 
+
 class LogicalArbStrategy(BaseStrategy):
     """
     Logical Arbitrage Strategy.
     Detects impossible pricing (e.g., sum of outcome probabilities > 105%)
-    across related markets.
+    across related markets and fires counter-trades on the over-priced tokens.
     """
+
     def __init__(
         self,
         engine: ExecutionEngine,
         ws: PolyWebSocket,
-        markets: List[Dict]
+        markets: List[Dict],
+        threshold: float = 1.05,
+        arb_size: int = 80,
     ):
-        super().__init__(engine, ws, "Logical-Arb")
+        # Extract token_ids for base class subscription management
+        token_ids = [m.get("token_id", "") for m in markets if m.get("token_id")]
+        super().__init__(engine, ws, "Logical-Arb", token_ids=token_ids)
 
-        # markets: list of token_ids or pairs to monitor
-        self.markets = markets 
+        self.markets = markets
+        self.threshold = threshold
+        self.arb_size = arb_size
         self.prices: Dict[str, float] = {}
 
+    # ------------------------------------------------------------------
+
     def on_market_update(self, data: dict):
-        if data.get("event_type") == "price":
+        event = data.get("event_type")
+
+        # Accept both "price" and "book" events
+        if event == "price":
             token_id = data.get("market")
             price_str = data.get("price")
-            if token_id is not None and price_str is not None:
+            if token_id and price_str:
                 self.prices[str(token_id)] = float(price_str)
-
-                # Re-check sum across related tokens
                 self.check_sum_violations()
 
+        elif event == "book":
+            token_id = data.get("market")
+            if token_id not in self.token_ids:
+                return
+            bids = data.get("bids", [])
+            asks = data.get("asks", [])
+            if bids and asks:
+                mid = (float(bids[0][0]) + float(asks[0][0])) / 2
+                self.prices[str(token_id)] = mid
+                self.check_sum_violations()
 
     def check_sum_violations(self):
-        # Example: if tokens are mutually exclusive (e.g., A wins, B wins, C wins)
+        if len(self.prices) < len(self.markets):
+            return  # Wait until we have prices for all legs
+
         total_prob = sum(self.prices.values())
-        if total_prob > 1.05 and len(self.prices) == len(self.markets):
-            # Opportunity! Short the outcomes (sell YES or buy NO)
+        if total_prob > self.threshold:
             logger.warning(
-                f"Logical ARB detected: Total sum {total_prob:.2f} "
-                f"across {len(self.markets)} markets."
+                f"[Logical-Arb] Sum violation: {total_prob:.4f} "
+                f"across {len(self.markets)} markets → arbing over-priced leg(s)"
             )
-            # self.execute_arb(...)
+            # Short the most over-priced outcome
+            most_overpriced_id = max(self.prices, key=lambda k: self.prices[k])
+            overpriced_price = self.prices[most_overpriced_id]
+            if self.engine.risk_manager.check_trade_allowed(
+                self.name, overpriced_price, self.arb_size, "SELL"
+            ):
+                self.engine.execute_limit_order(
+                    most_overpriced_id, overpriced_price, self.arb_size, "SELL",
+                    self.name, dry_run=self.engine.dry_run
+                )
 
     def on_trade_update(self, _data: dict):
-
         pass
 
     def run(self):
-        logger.info(f"Starting Arb on {len(self.markets)} markets...")
+        logger.info(f"[Logical-Arb] Monitoring {len(self.markets)} markets…")
         for m in self.markets:
             token_id = m.get("token_id")
             if token_id:
-                # Use price channel if available
+                self.ws.subscribe(str(token_id), "book")
                 self.ws.subscribe(str(token_id), "price")

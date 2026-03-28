@@ -1,0 +1,9 @@
+[
+  {
+    "_comment": "Remove this file entirely to use auto-discovery from Gamma API.",
+    "token_id": "REPLACE_WITH_REAL_TOKEN_ID",
+    "question": "Will BTC exceed $100k by end of 2025?",
+    "condition_id": "REPLACE_WITH_REAL_CONDITION_ID",
+    "volume": 1000000
+  }
+]

@@ -1,14 +1,30 @@
+# Core Polymarket client
 py-clob-client==1.0.10
-python-dotenv==1.0.0
+
+# Web & networking
 requests==2.31.0
-websocket-client==1.6.1
+websockets==12.0
+python-dotenv==1.0.0
+
+# Database ORM
 sqlmodel==0.0.14
-rich==13.7.0
 pydantic==2.5.2
 pydantic-settings==2.1.0
+
+# Data / analysis
 pandas==2.1.3
-openai==1.3.7  # For Grok API (OpenAI-compatible)
-eth-account==0.10.0
+numpy>=1.26.0
+
+# Scheduler (AMM requoting + auto-claim)
+apscheduler==3.10.4
+
+# AI / LLM (Grok via OpenAI-compatible endpoint)
+openai==1.3.7
+
+# Web3 / on-chain redemption
 web3==6.11.3
-apscheduler==3.10.4  # For task scheduling
-loguru==0.7.2  # Better logging
+eth-account==0.10.0
+
+# UI / logs
+rich==13.7.0
+loguru==0.7.2
