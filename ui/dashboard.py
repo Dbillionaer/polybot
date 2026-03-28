@@ -52,17 +52,25 @@ class Dashboard:
         table.add_column("Size", justify="right")
         table.add_column("Avg Price", justify="right")
         table.add_column("Current Price", justify="right")
-        table.add_column("PnL", justify="right")
+        table.add_column("Status", justify="right")
         
-        for pos in self.positions:
-            table.add_row(
-                pos['name'],
-                pos['side'],
-                str(pos['size']),
-                str(pos['avg']),
-                str(pos['current']),
-                "[green]+$12.50[/green]"
-            )
+        from core.database import get_open_positions
+        try:
+            live_positions = get_open_positions()
+            for pos in live_positions:
+                table.add_row(
+                    pos.condition_id[:8],
+                    pos.outcome,
+                    str(pos.size),
+                    str(pos.avg_price),
+                    "-",
+                    "[green]OPEN[/green]"
+                )
+        except Exception:
+            pass
+
+        if not table.rows:
+            table.add_row("No live positions", "", "", "", "", "")
 
         layout["positions"].update(Panel(table))
 
@@ -89,25 +97,39 @@ class Dashboard:
         layout["recent_trades"].update(Panel(table))
 
     def get_latest_trades(self):
-        # Placeholder
-        return [
-            {
-                "time": "14:22:01",
-                "market": "BTC > $100k",
-                "side": "BUY",
-                "size": "100",
-                "price": "0.45",
-                "strategy": "AI-Arb"
-            },
-            {
-                "time": "14:25:30",
-                "market": "TRUMP Wins 2028",
-                "side": "SELL",
-                "size": "50",
-                "price": "0.62",
-                "strategy": "AMM"
-            },
-        ]
+        from core.database import get_session, Trade
+        from sqlmodel import select
+        
+        trades_list = []
+        try:
+            with get_session() as session:
+                trades = session.exec(
+                    select(Trade).order_by(Trade.timestamp.desc()).limit(10)
+                ).all()
+                for t in trades:
+                    trades_list.append({
+                        "time": t.timestamp.strftime("%H:%M:%S"),
+                        "market": t.token_id[:8],
+                        "side": t.side,
+                        "size": str(t.size),
+                        "price": str(t.price),
+                        "strategy": t.strategy
+                    })
+        except Exception:
+            pass
+            
+        if not trades_list:
+            return [
+                {
+                    "time": "14:22:01",
+                    "market": "BTC > $100k",
+                    "side": "BUY",
+                    "size": "100",
+                    "price": "0.45",
+                    "strategy": "AI-Arb (Placeholder)"
+                }
+            ]
+        return trades_list
 
     def render_loop(self):
 

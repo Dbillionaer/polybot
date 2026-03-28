@@ -29,8 +29,9 @@ def main():
         
     # 3. Initialize Risk & Execution
     risk_manager = RiskManager(
-        max_pos_size_pct=float(os.getenv("MAX_POSITION_SIZE_PCT", 0.05)),
-        daily_loss_limit_pct=float(os.getenv("DAILY_LOSS_LIMIT_PCT", 0.05))
+        max_pos_size_pct=float(os.getenv("MAX_POSITION_SIZE_PCT", "0.05")),
+        daily_loss_limit_pct=float(os.getenv("DAILY_LOSS_LIMIT_PCT", "0.05"))
+
     )
     _execution_engine = ExecutionEngine(poly_client, risk_manager)
 
@@ -60,10 +61,18 @@ def main():
         
     logger.success("All systems operational. Bot is running.")
     
-    # 6. Keep main thread alive
+    # 6. Keep main thread alive via Dashboard
     try:
-        while True:
-            time.sleep(1)
+        use_dashboard = os.getenv("ENABLE_DASHBOARD", "True").lower() in ["true", "1"]
+        if use_dashboard:
+            # Removestderr logger so it doesn't break the UI
+            logger.remove(0)
+            from ui.dashboard import Dashboard
+            dash = Dashboard()
+            dash.render_loop()
+        else:
+            while True:
+                time.sleep(1)
     except KeyboardInterrupt:
         logger.info("Shutdown signal received.")
         ws.stop()
