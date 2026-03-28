@@ -48,5 +48,17 @@ class Backtester:
         Calculates Sharpe, Drawdown, Win Rate, and Total P&L.
         """
         logger.info("Backtest Complete. Generating Report...")
-        # ... report stats logic ...
+        if not self.trades:
+            logger.warning("No trades executed during backtest.")
+            return
 
+        df = pd.DataFrame(self.trades)
+        total_pnl = df['pnl'].sum() if 'pnl' in df.columns else 0.0
+        win_rate = (df['pnl'] > 0).mean() if 'pnl' in df.columns else 0.0
+        
+        logger.success("=== BACKTEST REPORT ===")
+        logger.info(f"Total Trades: {len(self.trades)}")
+        logger.info(f"Win Rate: {win_rate:.2%}")
+        logger.info(f"Total PNL: ${total_pnl:.2f}")
+        logger.info(f"Final Bankroll: ${self.bankroll + total_pnl:.2f}")
+        logger.success("=======================")

@@ -117,9 +117,29 @@ def update_position(
 
         if existing_pos:
             if existing_pos.outcome != outcome:
-                # Enforcement logic goes here
-                pass
+                from loguru import logger
+                logger.warning(
+                    f"Prevented opposing position! Holding {existing_pos.outcome}, "
+                    f"rejected {outcome} for {condition_id}"
+                )
+                return False
+            else:
+                total_size = existing_pos.size + _size_delta
+                if total_size > 0:
+                    existing_pos.avg_price = (
+                        (existing_pos.avg_price * existing_pos.size) + 
+                        (_price * _size_delta)
+                    ) / total_size
+                existing_pos.size = total_size
         else:
-            # Create logic goes here
-            pass
+            pos = Position(
+                condition_id=condition_id, 
+                token_id=_token_id, 
+                outcome=outcome, 
+                avg_price=_price, 
+                size=_size_delta, 
+                side="LONG"
+            )
+            session.add(pos)
         session.commit()
+        return True

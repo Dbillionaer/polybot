@@ -36,16 +36,31 @@ class ExecutionEngine:
             return {"status": "OK", "orderID": "DRY-RUN-ID"}
 
 
-        # Basic slippage/fee awareness: in Polymarket CLOB, 
-        # you are a taker or maker.
-        # Fees are typically proportional to the price. 
-        # Taker fee: ~0.15% - 0.22%
-        # Maker fee: ~0% (depending on the program)
-        
         # Check liquidity / spread if needed
-        # book = self.client.get_order_book(token_id)
-
-        # if not book: ...
+        book = self.client.get_order_book(token_id)
+        if not book:
+            logger.error(f"Cannot fetch liquidity for {token_id}")
+            return None
+        
+        bids = book.get('bids', [])
+        asks = book.get('asks', [])
+        if not bids or not asks:
+            logger.warning(f"No liquidity on orderbook for {token_id}")
+            return None
+            
+        best_bid = float(bids[0][0])
+        best_ask = float(asks[0][0])
+        spread = best_ask - best_bid
+        
+        if spread > 0.05: # Arbitrary spread check
+            logger.warning(
+                f"Spread too wide ({spread:.3f}) for {token_id}. "
+                f"Skipping execution."
+            )
+            return None
+            
+        fee_estimate = price * size * 0.002 # Example 0.20% fee estimate
+        logger.info(f"Estimated fee for trade: ${fee_estimate:.4f}")
         
         response = self.client.post_limit_order(token_id, price, size, side)
         

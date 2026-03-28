@@ -84,25 +84,34 @@ class AIArbStrategy(BaseStrategy):
                 logger.success(
                     f"BULLISH EDGE: {edge:.2%}. Placing BUY order."
                 )
-                # self.engine.execute_limit_order(
-                #     self.token_id, current_price + 0.01,
-                #     int(size), "BUY", self.name
-                # )
+                self.engine.execute_limit_order(
+                    self.token_id, current_price + 0.01,
+                    int(size), "BUY", self.name
+                )
 
         elif edge <= -self.edge_threshold:
             # Bearish edge logic (consider selling or ignoring if no position)
-            pass
+            logger.warning(
+                f"BEARISH EDGE: {edge:.2%}. Consider SELL logic."
+            )
 
     def on_market_update(self, _data: dict):
-
-        # We might trigger AI evaluation periodically rather than on every update
         pass
 
     def on_trade_update(self, _data: dict):
-
         pass
 
     def run(self):
+        import time
+        import threading
         logger.info(f"Starting AI Arb strategy on {self.market_name}...")
-        # Periodically re-evaluate every 15-30 mins
-        # Loop for periodic evaluation...
+        
+        def _loop():
+            # Periodically re-evaluate every 30 mins
+            while True:
+                # Default to 0.50 if can't load current price via engine
+                price = 0.50 
+                self.evaluate_edge(price)
+                time.sleep(1800)
+
+        threading.Thread(target=_loop, daemon=True).start()

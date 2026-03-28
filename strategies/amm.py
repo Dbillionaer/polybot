@@ -43,10 +43,37 @@ class AMMStrategy(BaseStrategy):
                 mid_price = (best_bid + best_ask) / 2
                 self.last_mid_price = mid_price
                 
-                # Logic: Maintain orders at mid_price +/- (spread/2)
-                # This would typically involve cancelling old 
-                # and placing new or using 'replace' if supported.
+                # Volatility widening logic
+                spread = best_ask - best_bid
+                if hasattr(self, 'volatility_multiplier'):
+                    pass
+                else:
+                    self.volatility_multiplier = 1.0
 
+                if spread > 0.03:
+                    self.volatility_multiplier = 1.5
+                else:
+                    self.volatility_multiplier = 1.0
+                    
+                actual_spread = self.spread * self.volatility_multiplier
+                
+                # Rebalancing / Inventory dampening
+                bid_adj = 0.0
+                ask_adj = 0.0
+                if self.inventory > self.max_inventory * 0.5: # Too long
+                    bid_adj -= 0.01  
+                    ask_adj -= 0.01
+                elif self.inventory < -self.max_inventory * 0.5: # Too short
+                    bid_adj += 0.01  
+                    ask_adj += 0.01
+                    
+                target_bid = mid_price - (actual_spread / 2) + bid_adj
+                target_ask = mid_price + (actual_spread / 2) + ask_adj
+                
+                logger.debug(
+                    f"[{self.name}] Target Quotes: BID {target_bid:.3f} | "
+                    f"ASK {target_ask:.3f} (Inv: {self.inventory})"
+                )
 
     def on_trade_update(self, data: dict):
         is_trade = data.get("event_type") == "trade"

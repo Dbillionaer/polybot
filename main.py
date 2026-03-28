@@ -43,20 +43,18 @@ def main():
     strategies = []
     
     # Example: Start AMM on a specific token
-    # from strategies.amm import AMMStrategy
-    # amm = AMMStrategy(_execution_engine, ws, token_id="...")
-    # strategies.append(amm)
+    from strategies.amm import AMMStrategy
+    amm = AMMStrategy(_execution_engine, ws, token_id="0x1234...")
+    strategies.append(amm)
 
     # Example: Start AI Arb on a market
     # from strategies.ai_arb import AIArbStrategy
     # ai_arb = AIArbStrategy(
     #     _execution_engine, ws,
-
-    #     "Will BTC reach $100k by tomorrow?", "..."
+    #     "Will BTC reach $100k by tomorrow?", "0xABCD..."
     # )
     # strategies.append(ai_arb)
 
-    
     for strategy in strategies:
         strategy.run()
         
