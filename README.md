@@ -9,7 +9,7 @@ polybot/
 ├── core/
 │   ├── auth.py          # L1/L2 credential derivation & authentication
 │   ├── client.py        # Wrapper around the py-clob-client API
-│   ├── data.py          # Gamma API integration for market discovery
+│   ├── data.py          # Gamma API & Falcon Analytics API endpoints
 │   ├── database.py      # SQLite / SQLModel schema & position tracking
 │   ├── logger.py        # Loguru configuration & Discord/Telegram alerts
 │   └── ws.py            # Asyncio WebSocket event loop for live orderbooks
@@ -22,10 +22,12 @@ polybot/
 │   ├── amm.py           # Automated Market Making logic (Quoting, Inventory)
 │   ├── momentum.py      # Orderbook momentum and imbalance trading
 │   ├── logical_arb.py   # High probability mathematical arbitrage
-│   └── ai_arb.py        # Grok (xAI) driven probability edge detection
+│   ├── ai_arb.py        # Grok (xAI) driven probability edge detection
+│   └── copy_trading.py  # Falcon API whale tracking and mirror execution
 ├── ui/
 │   └── dashboard.py     # Terminal UI dashboard (Rich)
 ├── main.py              # Application entry point & service wiring
+├── verify_setup.py      # Setup diagnostic and connectivity script
 ├── .env                 # Secret credentials and configuration
 ├── .gitignore           # Ignored files (logs, db, venv, .env)
 └── README.md            # You are here
@@ -41,6 +43,11 @@ POLYGON_PRIVATE_KEY="YOUR_WALLET_PRIVATE_KEY" # L1 signing
 POLY_API_KEY="" # L2 Key (Auto-derived if left blank)
 POLY_API_SECRET=""
 POLY_API_PASSPHRASE=""
+
+# Web3 CTF & Polymarket Analytics
+POLYGON_RPC_URL="https://polygon-mainnet.g.alchemy.com/v2/..."
+CTF_CONTRACT_ADDRESS="0x4D970a446C56654e805562095dB1E0BcB1b623E0"
+FALCON_API_KEY="" # For advanced Wallet 360 analytics
 
 # Risk & Bankroll Config
 MAX_POSITION_SIZE_PCT=0.05
@@ -74,11 +81,19 @@ self.engine.execute_limit_order(..., dry_run=False) # Danger! Funds at risk.
 ```
 
 ### Running the Bot
+
+**1. Verification (Recommended)**:
+Before risking funds or starting the main loop, ensure all your APIs (Gamma, Falcon, Web3, Database) are correctly authenticating by running:
+```bash
+python verify_setup.py
+```
+
+**2. Start Application**:
 ```bash
 python main.py
 ```
 
 ### Monitoring
-- **Terminal UI**: The bot features a `rich` dashboard available in `ui/dashboard.py` (you can invoke it alongside live logging).
-- **Log Files**: Automatic daily rotation logging is saved to `logs/bot.log`.
+- **Terminal UI**: The bot features a `rich` dashboard seamlessly integrated into `main.py` (controlled via `ENABLE_DASHBOARD=True` in your `.env`). It dynamically lists real-time open positions and the latest live trades pulled from your local database.
+- **Log Files**: Automatic daily rotation logging is seamlessly saved to `logs/bot.log`.
 - **Alerts**: Instant discord or telegram webhook posts are available for significant risk limit breaches or trade execution successes using the `core.logger` setup.
