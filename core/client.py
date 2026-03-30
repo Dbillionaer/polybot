@@ -1,9 +1,11 @@
 """CLOB API client wrapper for Polymarket — NegRisk-aware."""
 
 import os
+from typing import Any
+
 from loguru import logger
 from py_clob_client.client import ClobClient
-from py_clob_client.order_types import BUY, SELL, OrderArgs
+from py_clob_client.clob_types import OrderArgs
 
 from core.retry import clob_retry
 from core.negrisk import is_neg_risk_market, NEG_RISK_ADAPTER_ADDRESS, CTF_CONTRACT_ADDRESS
@@ -22,6 +24,20 @@ class PolyClient:
     def __init__(self, clob_client: ClobClient):
         self.clob = clob_client
         self.address = clob_client.get_address()
+
+    @staticmethod
+    def _order_submission_accepted(response: dict[str, Any] | None) -> bool:
+        """Return True when the CLOB response represents a successfully inserted order."""
+        if not isinstance(response, dict):
+            return False
+
+        order_id = response.get("orderID") or response.get("orderId") or response.get("id")
+        if not order_id or response.get("success") is False:
+            return False
+
+        status = str(response.get("status") or "").strip().lower()
+        accepted_statuses = {"ok", "live", "matched", "delayed", "unmatched"}
+        return not status or status in accepted_statuses
 
     # ──────────────────────────────────────────────────────────────────────
     # NegRisk helpers
@@ -86,7 +102,9 @@ class PolyClient:
         side: 'BUY' or 'SELL'
         """
         try:
-            order_side = BUY if side.upper() == "BUY" else SELL
+            order_side = side.upper()
+            if order_side not in {"BUY", "SELL"}:
+                raise ValueError(f"Unsupported order side: {side}")
             neg_risk = self.check_neg_risk(token_id)
 
             # Build OrderArgs — pass neg_risk if the kwarg is supported
@@ -102,7 +120,7 @@ class PolyClient:
                 # Older py-clob-client versions don't accept neg_risk kwarg
                 logger.debug(
                     "[NegRisk] OrderArgs does not accept neg_risk kwarg — "
-                    "upgrade py-clob-client >= 1.0.10 for NegRisk markets."
+                    "upgrade py-clob-client to a build that supports neg_risk."
                 )
                 order_args = OrderArgs(
                     token_id=token_id,
@@ -113,11 +131,12 @@ class PolyClient:
 
             response = self.clob.create_and_post_order(order_args)
 
-            if response.get("status") == "OK":
-                order_id = response.get("orderID")
+            if self._order_submission_accepted(response):
+                order_id = response.get("orderID") or response.get("orderId") or response.get("id")
+                status = str(response.get("status") or "accepted").upper()
                 logger.success(
                     f"Order posted: {side} {size} shares @ {price} "
-                    f"(ID: {order_id})"
+                    f"(ID: {order_id}, status={status})"
                     + (" [NegRisk]" if neg_risk else "")
                 )
                 return response
@@ -138,11 +157,23 @@ class PolyClient:
     def cancel_order(self, order_id: str):
         """Cancels an existing order."""
         try:
-            response = self.clob.cancel_order(order_id)
+            cancel_method = getattr(self.clob, "cancel_order", None) or getattr(self.clob, "cancel", None)
+            if cancel_method is None:
+                raise AttributeError("Underlying CLOB client does not expose a cancel order method")
+            response = cancel_method(order_id)
             logger.info(f"Cancel order {order_id} response: {response}")
             return response
         except Exception as e:
             logger.error(f"Error cancelling order {order_id}: {e}")
+            raise
+
+    @clob_retry
+    def get_order(self, order_id: str) -> dict[str, Any]:
+        """Fetch a single authenticated order snapshot from the CLOB."""
+        try:
+            return self.clob.get_order(order_id)
+        except Exception as e:
+            logger.error(f"Error fetching order {order_id}: {e}")
             raise
 
     # ──────────────────────────────────────────────────────────────────────

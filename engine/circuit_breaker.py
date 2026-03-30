@@ -90,16 +90,17 @@ class CircuitBreaker:
         self._consecutive_errors: int = 0
         # Rolling PnL events: list of (timestamp, pnl_delta)
         self._pnl_window: deque = deque()
+        self._last_total_pnl: float | None = None
         self._initial_bankroll: float = float(os.getenv("BANKROLL_USDC", "1000"))
 
     # ──────────────────────────────────────────────────────────────────────────
     # Public API
     # ──────────────────────────────────────────────────────────────────────────
 
-    def is_open(self) -> bool:
+    def allows_trading(self) -> bool:
         """
-        Returns True if trading is ALLOWED (circuit is closed/healthy).
-        Returns False if the circuit is tripped (open = trading paused).
+        Returns True if trading is allowed (breaker healthy / CLOSED).
+        Returns False if trading is paused (breaker tripped / OPEN).
         """
         if not self.enabled:
             return True
@@ -121,6 +122,10 @@ class CircuitBreaker:
                 f"Reason: {self._trip_reason}"
             )
             return False
+
+    def is_open(self) -> bool:
+        """Backward-compatible alias for trading-allowed status checks."""
+        return self.allows_trading()
 
     def record_error(self, context: str = "") -> None:
         """Call this after any CLOB/Gamma/WS error."""
@@ -153,23 +158,21 @@ class CircuitBreaker:
         if not self.enabled:
             return
         with self._lock:
-            now = datetime.utcnow()
-            cutoff = now - timedelta(minutes=self.drawdown_window_min)
+            self._record_pnl_delta_locked(delta)
 
-            # Purge stale entries
-            while self._pnl_window and self._pnl_window[0][0] < cutoff:
-                self._pnl_window.popleft()
+    def observe_total_pnl(self, total_pnl: float) -> None:
+        """Observe absolute total PnL and convert it into rolling deltas for breaker logic."""
+        if not self.enabled:
+            return
+        with self._lock:
+            if self._last_total_pnl is None:
+                self._last_total_pnl = total_pnl
+                return
 
-            self._pnl_window.append((now, delta))
-
-            window_loss = sum(d for _, d in self._pnl_window if d < 0)
-            trigger_usdc = self._initial_bankroll * self.drawdown_trigger
-
-            if abs(window_loss) >= trigger_usdc:
-                self._trip(
-                    f"{self.drawdown_window_min}-min drawdown ${abs(window_loss):.2f} "
-                    f"≥ {self.drawdown_trigger:.1%} of bankroll"
-                )
+            delta = total_pnl - self._last_total_pnl
+            self._last_total_pnl = total_pnl
+            if delta:
+                self._record_pnl_delta_locked(delta)
 
     def status_summary(self) -> dict:
         """Returns a dict suitable for dashboard display."""
@@ -177,14 +180,35 @@ class CircuitBreaker:
             return {
                 "enabled": self.enabled,
                 "tripped": self._tripped,
+                "trading_allowed": (not self._tripped) if self.enabled else True,
                 "reason": self._trip_reason,
                 "trip_time": self._trip_time.isoformat() if self._trip_time else None,
                 "consecutive_errors": self._consecutive_errors,
+                "last_total_pnl": self._last_total_pnl,
             }
 
     # ──────────────────────────────────────────────────────────────────────────
     # Internal helpers
     # ──────────────────────────────────────────────────────────────────────────
+
+    def _record_pnl_delta_locked(self, delta: float) -> None:
+        """Internal rolling-drawdown update (must be called under lock)."""
+        now = datetime.utcnow()
+        cutoff = now - timedelta(minutes=self.drawdown_window_min)
+
+        while self._pnl_window and self._pnl_window[0][0] < cutoff:
+            self._pnl_window.popleft()
+
+        self._pnl_window.append((now, delta))
+
+        window_loss = sum(d for _, d in self._pnl_window if d < 0)
+        trigger_usdc = self._initial_bankroll * self.drawdown_trigger
+
+        if abs(window_loss) >= trigger_usdc:
+            self._trip(
+                f"{self.drawdown_window_min}-min drawdown ${abs(window_loss):.2f} "
+                f"≥ {self.drawdown_trigger:.1%} of bankroll"
+            )
 
     def _trip(self, reason: str) -> None:
         """Internal: trip the breaker (must be called under self._lock)."""
@@ -207,6 +231,7 @@ class CircuitBreaker:
         self._tripped = False
         self._consecutive_errors = 0
         self._pnl_window.clear()
+        self._last_total_pnl = None
         msg = f"✅ Circuit breaker RESET after {self.cool_down_min}-min cool-down. Trading resumed."
         logger.success(f"[CircuitBreaker] {msg}")
         _send_telegram(msg)

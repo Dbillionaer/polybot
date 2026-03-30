@@ -1,5 +1,5 @@
 # Core Polymarket client
-py-clob-client==1.0.10
+py-clob-client==0.34.6
 
 # Web & networking
 requests==2.31.0

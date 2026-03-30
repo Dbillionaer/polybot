@@ -23,6 +23,8 @@ class RiskManager:
 
         # Runtime tracking
         self._daily_pnl: float = 0.0
+        self._realized_pnl: float = 0.0
+        self._mark_to_market_pnl: float = 0.0
         self._initial_bankroll: float = float(os.getenv("BANKROLL_USDC", "1000"))
         self._current_bankroll: float = self._initial_bankroll
 
@@ -114,15 +116,41 @@ class RiskManager:
     # PnL tracking
     # ------------------------------------------------------------------
 
-    def record_pnl(self, pnl_delta: float):
-        """Update daily PnL and current bankroll tracking."""
+    def record_realized_pnl(self, pnl_delta: float):
+        """Update realized/daily PnL and recompute bankroll."""
         self._daily_pnl += pnl_delta
-        self._current_bankroll += pnl_delta
+        self._realized_pnl += pnl_delta
+        self._current_bankroll = self._initial_bankroll + self._realized_pnl + self._mark_to_market_pnl
         logger.debug(
-            f"[Risk] PnL Δ ${pnl_delta:+.4f} | "
-            f"Daily: ${self._daily_pnl:.2f} | "
+            f"[Risk] Realized PnL Δ ${pnl_delta:+.4f} | "
+            f"Daily Realized: ${self._daily_pnl:.2f} | "
+            f"Total Realized: ${self._realized_pnl:.2f} | "
             f"Bankroll: ${self._current_bankroll:.2f}"
         )
+
+    def record_pnl(self, pnl_delta: float):
+        """Backward-compatible alias for realized PnL updates."""
+        self.record_realized_pnl(pnl_delta)
+
+    def update_mark_to_market(self, open_pnl_total: float) -> None:
+        """Refresh mark-to-market PnL and recompute bankroll-equity view."""
+        self._mark_to_market_pnl = open_pnl_total
+        self._current_bankroll = self._initial_bankroll + self._realized_pnl + self._mark_to_market_pnl
+        logger.debug(
+            f"[Risk] MTM updated to ${self._mark_to_market_pnl:.2f} | "
+            f"Equity: ${self._current_bankroll:.2f}"
+        )
+
+    def snapshot(self) -> dict[str, float]:
+        """Return the current realized/MTM bankroll state."""
+        return {
+            "initial_bankroll": self._initial_bankroll,
+            "current_bankroll": self._current_bankroll,
+            "daily_pnl": self._daily_pnl,
+            "realized_pnl": self._realized_pnl,
+            "mark_to_market_pnl": self._mark_to_market_pnl,
+            "total_pnl": self._realized_pnl + self._mark_to_market_pnl,
+        }
 
     def reset_daily_pnl(self):
         """Called at market open or midnight to reset daily counters."""

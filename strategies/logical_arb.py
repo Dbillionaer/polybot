@@ -32,6 +32,13 @@ class LogicalArbStrategy(BaseStrategy):
         self.threshold = threshold
         self.arb_size = arb_size
         self.prices: Dict[str, float] = {}
+        self.condition_families: Dict[str, List[str]] = {}
+
+        for market in markets:
+            token_id = market.get("token_id")
+            condition_id = market.get("condition_id") or token_id
+            if token_id and condition_id:
+                self.condition_families.setdefault(str(condition_id), []).append(str(token_id))
 
     # ------------------------------------------------------------------
 
@@ -58,24 +65,31 @@ class LogicalArbStrategy(BaseStrategy):
                 self.check_sum_violations()
 
     def check_sum_violations(self):
-        if len(self.prices) < len(self.markets):
-            return  # Wait until we have prices for all legs
+        for condition_id, token_ids in self.condition_families.items():
+            if len(token_ids) < 2:
+                continue
+            if any(token_id not in self.prices for token_id in token_ids):
+                continue
 
-        total_prob = sum(self.prices.values())
-        if total_prob > self.threshold:
+            family_prices = {token_id: self.prices[token_id] for token_id in token_ids}
+            total_prob = sum(family_prices.values())
+            if total_prob <= self.threshold:
+                continue
+
             logger.warning(
-                f"[Logical-Arb] Sum violation: {total_prob:.4f} "
-                f"across {len(self.markets)} markets → arbing over-priced leg(s)"
+                f"[Logical-Arb] Sum violation: {total_prob:.4f} in condition {condition_id[:12]}… "
+                f"across {len(token_ids)} outcomes → arbing over-priced leg(s)"
             )
-            # Short the most over-priced outcome
-            most_overpriced_id = max(self.prices, key=lambda k: self.prices[k])
-            overpriced_price = self.prices[most_overpriced_id]
-            if self.engine.risk_manager.check_trade_allowed(
-                self.name, overpriced_price, self.arb_size, "SELL"
-            ):
+            most_overpriced_id = max(family_prices, key=lambda k: family_prices[k])
+            overpriced_price = family_prices[most_overpriced_id]
+            if self.engine.risk_manager.check_trade_allowed(self.name, overpriced_price, self.arb_size, "SELL"):
                 self.engine.execute_limit_order(
-                    most_overpriced_id, overpriced_price, self.arb_size, "SELL",
-                    self.name, dry_run=self.engine.dry_run
+                    most_overpriced_id,
+                    overpriced_price,
+                    self.arb_size,
+                    "SELL",
+                    self.name,
+                    dry_run=self.engine.dry_run,
                 )
 
     def on_trade_update(self, _data: dict):

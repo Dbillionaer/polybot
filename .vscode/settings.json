@@ -1,0 +1,20 @@
+{
+    "python.defaultInterpreterPath": "C:\\Python313\\python.exe",
+    "python.analysis.extraPaths": [
+        "C:\\Users\\DBill\\AppData\\Roaming\\Python\\Python313\\site-packages"
+    ],
+    "cSpell.words": [
+        "clob",
+        "creds",
+        "dotenv",
+        "mult",
+        "negrisk",
+        "optimised",
+        "polybot",
+        "Polymarket",
+        "requote",
+        "retriable",
+        "signum",
+        "supervisord"
+    ]
+}

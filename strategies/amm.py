@@ -39,6 +39,14 @@ class AMMStrategy(BaseStrategy):
         self.last_mid_price: dict = {t: 0.0 for t in self.token_ids}
         self.inventory: dict = {t: 0.0 for t in self.token_ids}
         self.volatility_multiplier: dict = {t: 1.0 for t in self.token_ids}
+        self.quote_reprice_threshold = 0.005
+        self.active_quotes: dict = {
+            t: {
+                "BUY": {"order_id": None, "price": None},
+                "SELL": {"order_id": None, "price": None},
+            }
+            for t in self.token_ids
+        }
 
         # Sync inventory from on-chain / db at startup
         for t in self.token_ids:
@@ -63,10 +71,57 @@ class AMMStrategy(BaseStrategy):
         """Re-run quoting logic for all active markets (called by scheduler)."""
         for tid in self.token_ids:
             if self.last_mid_price.get(tid, 0) > 0:
+                try:
+                    book = self.engine.client.get_order_book(tid)
+                except Exception as e:
+                    logger.warning(f"[AMM] Requote book fetch failed for {tid[:10]}…: {e}")
+                    continue
                 self.on_market_update({
                     "event_type": "book",
-                    "_requote_market": tid,
+                    "market": tid,
+                    "bids": book.get("bids", []),
+                    "asks": book.get("asks", []),
                 })
+
+    def _quote_slot(self, market_id: str, side: str) -> dict:
+        return self.active_quotes.setdefault(market_id, {}).setdefault(
+            side,
+            {"order_id": None, "price": None},
+        )
+
+    def _clear_stale_quote(self, market_id: str, side: str) -> None:
+        quote = self._quote_slot(market_id, side)
+        order_id = quote.get("order_id")
+        if order_id and not self.engine.is_order_pending(order_id):
+            quote["order_id"] = None
+            quote["price"] = None
+
+    def _place_or_replace_quote(self, market_id: str, side: str, target_price: float) -> None:
+        quote = self._quote_slot(market_id, side)
+        self._clear_stale_quote(market_id, side)
+
+        existing_order_id = quote.get("order_id")
+        existing_price = quote.get("price")
+        if existing_order_id and existing_price is not None:
+            if abs(float(existing_price) - target_price) < self.quote_reprice_threshold:
+                return
+            if not self.engine.cancel_order(existing_order_id, reason=f"{self.name} requote {side}"):
+                logger.warning(f"[AMM] Failed to cancel stale {side} quote {existing_order_id} for {market_id[:10]}…")
+                return
+            quote["order_id"] = None
+            quote["price"] = None
+
+        response = self.engine.execute_limit_order(
+            market_id,
+            target_price,
+            self.size,
+            side,
+            self.name,
+            dry_run=self.engine.dry_run,
+        )
+        if response and response.get("execution_status") == "ACCEPTED":
+            quote["order_id"] = response.get("orderID")
+            quote["price"] = target_price
 
     # ------------------------------------------------------------------
     # WebSocket callbacks
@@ -113,21 +168,11 @@ class AMMStrategy(BaseStrategy):
                 f"ASK {target_ask:.3f} | Inv: {inv:.1f} | VM: {self.volatility_multiplier[market_id]}"
             )
 
-            # Execute both sides with full risk check
-            if self.engine.risk_manager.check_trade_allowed(
-                self.name, target_bid, self.size, "BUY"
-            ):
-                self.engine.execute_limit_order(
-                    market_id, target_bid, self.size, "BUY",
-                    self.name, dry_run=self.engine.dry_run
-                )
-            if self.engine.risk_manager.check_trade_allowed(
-                self.name, target_ask, self.size, "SELL"
-            ):
-                self.engine.execute_limit_order(
-                    market_id, target_ask, self.size, "SELL",
-                    self.name, dry_run=self.engine.dry_run
-                )
+            # Execute both sides with quote ownership / cancel-replace
+            if self.engine.risk_manager.check_trade_allowed(self.name, target_bid, self.size, "BUY"):
+                self._place_or_replace_quote(market_id, "BUY", target_bid)
+            if self.engine.risk_manager.check_trade_allowed(self.name, target_ask, self.size, "SELL"):
+                self._place_or_replace_quote(market_id, "SELL", target_ask)
 
     def on_trade_update(self, data: dict):
         if data.get("event_type") != "trade":
@@ -149,6 +194,8 @@ class AMMStrategy(BaseStrategy):
                 self.inventory[market_id] = self.inventory.get(market_id, 0) + size
             else:
                 self.inventory[market_id] = self.inventory.get(market_id, 0) - size
+            if side in ("BUY", "SELL"):
+                self.active_quotes.get(market_id, {}).get(side, {}).update({"order_id": None, "price": None})
             logger.info(
                 f"[AMM] {market_id[:10]}… Fill: {side} {size}  "
                 f"→ Inventory: {self.inventory[market_id]:.2f}"
