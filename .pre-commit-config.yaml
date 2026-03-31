@@ -1,0 +1,58 @@
+# Pre-commit hooks configuration
+# Run: pre-commit install
+
+repos:
+  - repo: local
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+
+default_language_version:
+  - python3
+
+minimum_pre_commit_version: '3.0.0'
+
+default_stages:
+  - commit
+
+default_install_hook_types:
+  - pre-commit
+  - commit-msg
+  - post-commit
+  - post-checkout
+  - pre-push
+  - pre-rebase
+  - post-merge
+  - pre-merge-commit
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+    - id: trailing-whitespace
+    - id: end-of-file-fixer
+    - id: check-yaml
+    - id: check-toml
+    - id: check-added-large-files
+      args: ['--maxkb=500']
+    - id: detect-private-key
+    - id: mixed-line-ending
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.3.0
+    hooks:
+    - id: ruff
+      args: [--fix, --exit-non-zero-on-fix]
+    - id: ruff-format
+      args: [--exit-non-zero-on-fix]
+
+  - repo: https://github.com/psf/black
+    rev: 24.3.0
+    hooks:
+    - id: black
+      language_version: python3
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.14.0
+    hooks:
+    - id: mypy
+      args: [--ignore-missing-imports]
+      additional_dependencies: [types-all]

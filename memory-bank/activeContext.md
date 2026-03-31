@@ -1,29 +1,38 @@
 # Active Context
 
-- Last Updated: 2026-03-30 00:00:00 UTC
+- Last Updated: 2026-03-30 20:20:00 UTC
 - Version: v1.3
-- Last Change Summary: Recorded completion of roadmap Phase 4 and shifted focus to Phase 5 validation framework work.
-- Related Changes: `progress.md`, `interactionHistory.md`, `projectIntelligence.md`
+- Last Change Summary: Started implementation of improvement plan Phase 1 (CI/CD and testing infrastructure).
+- Related Changes: `progress.md`, `interactionHistory.md`, `improvement-plan.md`
 
 ## Current Focus
 
-Roadmap **Phases 1-4** are now complete. Next focus is **Phase 5: validation framework**, specifically a lightweight simulation/backtesting harness that can exercise strategies against deterministic market inputs.
+**Impro Plan Phase 1: CI/CD and Testing Infrastructure**
 
-## Recently Completed
+Currently implementing foundational improvements based on independent assessment (assessment1.md). The composite score of 58/100 identified critical gaps in test coverage, CI/CD, and code architecture.
 
-1. Corrected `condition_id` vs `token_id` handling in the execution/accounting path.
-2. Separated accepted orders from confirmed fills using `pending_orders`.
-3. Added CLOSED position semantics in the local ledger.
-4. Integrated authenticated polling-based fill reconciliation using `get_order()`.
-5. Added a targeted reconciliation test covering partial fill, full fill, and position closure.
-6. Added legacy-ledger audit/repair tooling that rebuilds positions from trades and ships with a CLI backup path.
-7. Wired realized and mark-to-market PnL into `RiskManager` and `CircuitBreaker`.
-8. Added AMM quote ownership / cancel-replace and grouped LogicalArb by condition family.
-9. Deduplicated websocket subscriptions/callbacks and added execution telemetry for fill latency, slippage, and strategy error rates.
+### Completed in This Session
 
-## Immediate Next Step
+1. Created `.github/workflows/ci.yml` - CI/CD pipeline with test matrix
+2. Created `pyproject.toml` - Tool configurations for ruff, black, mypy, pytest
+3. Created `tests/conftest.py` - Shared test fixtures (mocks, test data)
+4. Created `.pre-commit-config.yaml` - Pre-commit hooks
+5. Updated `requirements.txt` - Added dev dependencies
+6. Created `CHANGELOG.md` - Change tracking
+7. Updated `memory-bank/progress.md` - Reflected new roadmap
+8. Updated `memory-bank/interactionHistory.md` - Documented work
 
-- Design the smallest useful simulation/backtest harness for existing strategies and execution safety checks.
+### In Progress
+
+- Task 1.6: Write tests for core/negrisk.py (critical for mainnet)
+- Remaining Phase 1 tasks
+
+## Immediate Next Steps
+
+1. Complete NegRisk module tests
+2. Begin Phase 2: Write tests for all 5 strategies
+3. Add input validation for order parameters
+4. Add Pydantic schemas for market data
 
 ## Important Working Assumptions
 
@@ -33,12 +42,4 @@ Roadmap **Phases 1-4** are now complete. Next focus is **Phase 5: validation fra
 - Order lifecycle must be tracked from accepted submission to confirmed fill/cancel.
 - Primary success metric is deployment readiness; secondary metric is profitability.
 - First milestone is a small live deployment.
-- AI arb, copy trading, AMM, auto-claim, and live deployment are all in scope.
-
-## Short-Term Considerations
-
-- Memory Bank was reconstructed from repo state because no prior `memory-bank/` files were present.
-- Core project-brief assumptions have now been validated by the user.
-- Legacy DB cleanup now has a conservative scripted path but still depends on valid market metadata for real DB repair.
-- MTM PnL now depends on live order-book mids; dashboard-independent runtime refresh exists via execution monitoring.
-- Execution telemetry now exists in `ExecutionEngine.get_telemetry_snapshot()` but is not yet surfaced in the dashboard/UI.
+- Test coverage target: 70%+ (currently ~30%)

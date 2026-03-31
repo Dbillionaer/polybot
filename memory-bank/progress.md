@@ -61,9 +61,14 @@ Next pending phases:
 
 ## Known Issues
 
-- README/go-live framing is more optimistic than the current proven readiness.
+- README/go-live framing is more optimistic than current proven readiness.
 - Backtesting/simulation framework is still absent.
 - `datetime.utcnow()` deprecation warnings remain.
+
+- Test coverage currently at ~30% (target: 70%+)
+- No CI/CD pipeline (now being addressed in Phase 1)
+- ExecutionEngine needs refactoring (Phase 3)
+- Input validation missing (Phase 2)
 
 ## Recent Verification Results
 
