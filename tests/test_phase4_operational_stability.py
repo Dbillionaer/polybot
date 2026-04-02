@@ -3,6 +3,8 @@ from pathlib import Path
 import sys
 import unittest
 
+from sqlmodel import SQLModel
+
 
 TEST_DB_PATH = Path("phase4_operational_stability.db")
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH.as_posix()}"
@@ -16,25 +18,7 @@ from engine.circuit_breaker import CircuitBreaker  # noqa: E402
 from engine.execution import ExecutionEngine  # noqa: E402
 from engine.risk import RiskManager  # noqa: E402
 from strategies.base import BaseStrategy  # noqa: E402
-
-
-class FakeClient:
-    def __init__(self):
-        self.orders = {}
-        self.post_count = 0
-        self.books = {"tok-1": {"bids": [[0.49, 100]], "asks": [[0.51, 100]]}}
-
-    def check_neg_risk(self, _token_id: str) -> bool:
-        return False
-
-    def get_order_book(self, token_id: str):
-        return self.books[token_id]
-
-    def post_limit_order(self, token_id: str, price: float, size: int, side: str):
-        self.post_count += 1
-        order_id = f"order-{self.post_count}"
-        self.orders[order_id] = {"status": "live", "orderID": order_id}
-        return {"status": "live", "orderID": order_id}
+from tests.mocks.execution import MockPolyClient
 
 
 class ExplodingStrategy(BaseStrategy):
@@ -55,6 +39,7 @@ class Phase4OperationalStabilityTest(unittest.TestCase):
     def setUp(self):
         if TEST_DB_PATH.exists():
             TEST_DB_PATH.unlink()
+        SQLModel.metadata.drop_all(db_engine)
         create_db_and_tables()
 
     def tearDown(self):
@@ -79,7 +64,7 @@ class Phase4OperationalStabilityTest(unittest.TestCase):
         self.assertEqual(ws.status_summary()["subscription_count"], 2)
 
     def test_strategy_callback_errors_feed_execution_telemetry(self):
-        engine = ExecutionEngine(FakeClient(), RiskManager(), dry_run=False, circuit_breaker=CircuitBreaker(enabled=False))
+        engine = ExecutionEngine(MockPolyClient(), RiskManager(), dry_run=False, circuit_breaker=CircuitBreaker(enabled=False))
         ws = PolyWebSocket()
         strategy = ExplodingStrategy(engine, ws)
 
@@ -92,7 +77,7 @@ class Phase4OperationalStabilityTest(unittest.TestCase):
         self.assertEqual(len(telemetry["recent_errors"]), 2)
 
     def test_execution_telemetry_tracks_fill_latency_and_slippage(self):
-        engine = ExecutionEngine(FakeClient(), RiskManager(), dry_run=False, circuit_breaker=CircuitBreaker(enabled=False))
+        engine = ExecutionEngine(MockPolyClient(), RiskManager(), dry_run=False, circuit_breaker=CircuitBreaker(enabled=False))
         engine.register_markets([
             {"token_id": "tok-1", "condition_id": "cond-1", "outcome": "YES"}
         ])

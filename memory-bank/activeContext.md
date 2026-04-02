@@ -1,38 +1,43 @@
 # Active Context
 
-- Last Updated: 2026-03-30 20:20:00 UTC
-- Version: v1.3
-- Last Change Summary: Started implementation of improvement plan Phase 1 (CI/CD and testing infrastructure).
-- Related Changes: `progress.md`, `interactionHistory.md`, `improvement-plan.md`
+- Last Updated: 2026-04-01 21:17:10 -04:00
+- Version: v1.4
+- Last Change Summary: Removed the last known verification blocker by fixing the legacy-ledger test isolation leak. Phase 4 can now proceed from a clean targeted regression baseline.
+- Related Changes: `progress.md`, `systemPatterns.md`, `interactionHistory.md`, `projectbrief.md`, `projectIntelligence.md`, `techContext.md`
 
 ## Current Focus
 
-**Impro Plan Phase 1: CI/CD and Testing Infrastructure**
+**Improvement Plan Phase 4: Production Readiness**
 
-Currently implementing foundational improvements based on independent assessment (assessment1.md). The composite score of 58/100 identified critical gaps in test coverage, CI/CD, and code architecture.
+All project tracking remains exclusively through the defined memory-bank core files. Phase 3 extraction/refactor work is complete. Phase 4 has already started at the operational-stability layer, but the formal production-readiness checklist is still largely open.
 
-### Completed in This Session
+### Recently Completed Work
+- Created `engine/order_executor.py`, `engine/fill_reconciler.py`, and `engine/telemetry_collector.py`
+- Refactored `engine/execution.py` into a thinner orchestration facade over extracted engine helpers
+- Added `tests/test_order_executor.py`, `tests/test_fill_reconciler.py`, and `tests/test_telemetry_collector.py`
+- Added shared execution test doubles in `tests/mocks/execution.py` plus `tests/__init__.py` and `tests/mocks/__init__.py`
+- Replaced `datetime.utcnow()` in `core/database.py`, `core/ws.py`, and `engine/circuit_breaker.py`
+- Remediated stale/mismatched tests in `tests/test_client.py`, `tests/test_strategy_momentum.py`, `tests/test_strategy_ai_arb.py`, and `tests/test_negrisk.py`
+- Added WebSocket deduplication, strategy callback error wrappers, and execution telemetry snapshots; verified via `tests/test_phase4_operational_stability.py`
 
-1. Created `.github/workflows/ci.yml` - CI/CD pipeline with test matrix
-2. Created `pyproject.toml` - Tool configurations for ruff, black, mypy, pytest
-3. Created `tests/conftest.py` - Shared test fixtures (mocks, test data)
-4. Created `.pre-commit-config.yaml` - Pre-commit hooks
-5. Updated `requirements.txt` - Added dev dependencies
-6. Created `CHANGELOG.md` - Change tracking
-7. Updated `memory-bank/progress.md` - Reflected new roadmap
-8. Updated `memory-bank/interactionHistory.md` - Documented work
+### Current Status
+- Phase 1: COMPLETE
+- Phase 2: partially complete, but current branch state no longer maps cleanly onto the original checklist
+- Phase 3: COMPLETE - engine extraction, mock consolidation, datetime cleanup, and stale-test remediation are done
+- Phase 4: PARTIALLY STARTED - operational stability work is landed, targeted regressions are clean, and production-readiness utilities and validation workflow still need implementation
 
-### In Progress
-
-- Task 1.6: Write tests for core/negrisk.py (critical for mainnet)
-- Remaining Phase 1 tasks
+### Verified Checks
+- `python -m pytest tests/test_phase4_operational_stability.py -q` -> 3 passed
+- `python -m pytest tests/test_order_executor.py tests/test_fill_reconciler.py tests/test_telemetry_collector.py tests/test_execution_reconciliation.py tests/test_risk_pnl_plumbing.py tests/test_client.py tests/test_strategy_momentum.py tests/test_strategy_ai_arb.py tests/test_negrisk.py -q` -> 74 passed
+- `python -m pytest tests/test_legacy_ledger_repair.py -q` -> 2 passed
+- `python -m pytest tests/test_phase4_operational_stability.py tests/test_order_executor.py tests/test_fill_reconciler.py tests/test_telemetry_collector.py tests/test_execution_reconciliation.py tests/test_risk_pnl_plumbing.py tests/test_client.py tests/test_strategy_momentum.py tests/test_strategy_ai_arb.py tests/test_negrisk.py -q` -> 77 passed
 
 ## Immediate Next Steps
 
-1. Complete NegRisk module tests
-2. Begin Phase 2: Write tests for all 5 strategies
-3. Add input validation for order parameters
-4. Add Pydantic schemas for market data
+1. Begin the official Phase 4 deliverables with the mock CLOB server and integration suite
+2. Add JSON logging, backup/export tooling, and the disaster-recovery runbook
+3. After Phase 4 implementation work, re-run broader validation including lint, typecheck, and coverage confirmation
+4. Prepare and document the 7-day dry-run workflow before live-capital rollout
 
 ## Important Working Assumptions
 
@@ -42,4 +47,4 @@ Currently implementing foundational improvements based on independent assessment
 - Order lifecycle must be tracked from accepted submission to confirmed fill/cancel.
 - Primary success metric is deployment readiness; secondary metric is profitability.
 - First milestone is a small live deployment.
-- Test coverage target: 70%+ (currently ~30%)
+- Test coverage target: 70%+

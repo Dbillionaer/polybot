@@ -1,9 +1,9 @@
 # Interaction History
 
-- Last Updated: 2026-03-30 00:00:00 UTC
-- Version: v1.4
-- Last Change Summary: Logged user question about Polymarket rules/docs coverage in the Memory Bank.
-- Related Changes: `activeContext.md`, `progress.md`, `projectIntelligence.md`
+- Last Updated: 2026-04-01 21:17:10 -04:00
+- Version: v1.5
+- Last Change Summary: Added the legacy-ledger isolation fix and post-fix verification run, leaving Phase 4 unblocked at the targeted regression level.
+- Related Changes: `activeContext.md`, `progress.md`, `projectIntelligence.md`, `projectbrief.md`, `techContext.md`
 
 ## Policy
 
@@ -73,3 +73,27 @@
   - Security scanning (pip-audit)
   - Shared test fixtures for mocks and test data
 - Outcome: Phase 1 infrastructure tasks 1.1-1.5 substantially complete; ready for task 1.6 (NegRisk tests).
+
+### IH-2026-04-01-01
+- Actions: completed focused stale-test remediation for `tests/test_client.py`, `tests/test_strategy_momentum.py`, `tests/test_strategy_ai_arb.py`, and `tests/test_negrisk.py` so those files match current production contracts again.
+- Outcome: the stale/mismatched remediation set moved back to green and unblocked a clean Phase 3 status review.
+
+### IH-2026-04-01-02
+- User asked what Phase 4 still requires and whether the Memory Bank had been updated recently.
+- Actions: reviewed `memory-bank/archives/improvement-plan-2026-03-30.md` plus current core memory-bank files and git status.
+- Outcome: confirmed Phase 4 had partially started through operational-stability work, but the official production-readiness checklist remained mostly open and the core memory-bank status files had drifted out of sync.
+
+### IH-2026-04-01-03
+- User requested: sync the memory-bank files to current reality.
+- Actions: re-ran targeted verification (`tests/test_phase4_operational_stability.py`: 3 passed; combined Phase 3/remediation suite: 74 passed; `tests/test_legacy_ledger_repair.py`: 1 passed, 1 failed) and updated the core memory-bank status files.
+- Outcome: Memory Bank now records Phase 3 as complete, Phase 4 as partially started, and the remaining blocker as the legacy-ledger isolation failure.
+
+### IH-2026-04-01-04
+- User asked whether the failing legacy-ledger test was worth keeping and then requested the fix so Phase 4 could proceed.
+- Actions: added `SQLModel.metadata.drop_all(db_engine)` to `tests/test_legacy_ledger_repair.py` setup, re-ran the legacy-ledger regression (2 passed), and re-ran the consolidated phase verification suite (77 passed).
+- Outcome: targeted verification is fully green again and Phase 4 can proceed without the legacy-ledger test blocker.
+
+### IH-2026-04-01-05
+- User requested expansion of `memory-bank/externalDocs.md` with official Polymarket auth, order/trade state, Gamma metadata, NegRisk/redeem, rate-limit, trading-constraint, Polygon/USDC, and authoritative SDK references.
+- Actions: fetched current official Polymarket docs and rebuilt `memory-bank/externalDocs.md` into a curated source map with official URLs, verification dates, relevance notes, and key operational takeaways.
+- Outcome: external references are now broad enough to support Phase 4 integration, dry-run, and runbook work.

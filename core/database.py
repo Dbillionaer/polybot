@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from collections import defaultdict
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Iterable, List, Mapping, Optional
 
 from dotenv import load_dotenv
@@ -26,7 +26,7 @@ class Position(SQLModel, table=True):
     avg_price: float
     size: float
     side: str  # "LONG"
-    entry_time: datetime = Field(default_factory=datetime.utcnow)
+    entry_time: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     status: str = "OPEN"  # "OPEN", "CLOSED"
 
 
@@ -40,7 +40,7 @@ class Trade(SQLModel, table=True):
     side: str  # "BUY", "SELL"
     price: float
     size: float
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     strategy: str
 
 
@@ -50,7 +50,7 @@ class BotState(SQLModel, table=True):
 
     key: str = Field(primary_key=True)
     value: str
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 sqlite_url = os.getenv("DATABASE_URL", "sqlite:///polybot.db")
 engine = create_engine(sqlite_url)
@@ -83,6 +83,9 @@ def create_db_and_tables():
     """Initializes the database schema."""
 
     SQLModel.metadata.create_all(engine)
+
+
+init_db = create_db_and_tables
 
 
 def get_session():

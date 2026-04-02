@@ -1,9 +1,9 @@
 # Tech Context
 
-- Last Updated: 2026-03-30 00:00:00 UTC
-- Version: v1.0
-- Last Change Summary: Captured stack, setup, and tooling conventions.
-- Related Changes: `systemPatterns.md`, `interactionHistory.md`, `externalDocs.md`
+- Last Updated: 2026-04-01 21:17:10 -04:00
+- Version: v1.1
+- Last Change Summary: Updated the verification commands and caveats after clearing the legacy-ledger isolation failure and restoring a clean targeted regression baseline.
+- Related Changes: `systemPatterns.md`, `interactionHistory.md`, `externalDocs.md`, `activeContext.md`, `progress.md`
 
 ## Core Stack
 
@@ -27,6 +27,9 @@
 - Verify setup: `python verify_setup.py`
 - Compile touched files: `python -m py_compile <files>`
 - Reconciliation test: `python tests/test_execution_reconciliation.py`
+- Phase 4 stability test: `python -m pytest tests/test_phase4_operational_stability.py -q`
+- Legacy repair regression: `python -m pytest tests/test_legacy_ledger_repair.py -q`
+- Combined Phase 3/remediation regressions: `python -m pytest tests/test_order_executor.py tests/test_fill_reconciler.py tests/test_telemetry_collector.py tests/test_execution_reconciliation.py tests/test_risk_pnl_plumbing.py tests/test_client.py tests/test_strategy_momentum.py tests/test_strategy_ai_arb.py tests/test_negrisk.py -q`
 
 ## Environment Patterns
 
@@ -51,5 +54,6 @@
 
 ## Current Technical Caveats
 
-- Some code paths still use `datetime.utcnow()`, which emits deprecation warnings on Python 3.13.
-- Existing SQLite files may contain stale data from pre-fix accounting logic.
+- Existing SQLite files may still contain stale data from pre-fix accounting logic, so repair/audit flows remain important before live deployment.
+- Lint, typecheck, and exact coverage status were not re-verified during this memory-bank sync.
+- The targeted verification baseline is green, but Phase 4 production-readiness tooling is still missing: integration harness, JSON logging option, backup/export utilities, disaster-recovery runbook, and dry-run documentation.

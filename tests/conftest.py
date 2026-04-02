@@ -3,10 +3,9 @@
 
 import os
 import tempfile
-from typing import Any, Generator
-from unittest import TestCase
+
+import pytest
 from sqlmodel import SQLModel, Session, create_engine
-from sqlalchemy import Engine as SAEngine
 
 # Core imports for mocking
 from core.client import PolyClient
@@ -253,6 +252,7 @@ def sample_position():
         outcome="YES",
         size=100.0,
         avg_price=0.50,
+        side="LONG",
         status="OPEN",
     )
 
@@ -261,13 +261,12 @@ def sample_position():
 def sample_trade():
     """Sample trade for testing."""
     return Trade(
-        condition_id="0x1234567890abcdef",
+        order_id="order_test_001",
         token_id="0xtoken1",
-        outcome="YES",
         side="BUY",
         size=100.0,
         price=0.50,
-        strategy_name="momentum",
+        strategy="momentum",
     )
 
 
@@ -290,16 +289,15 @@ def create_test_position(session, condition_id="0xtest", token_id="0xtoken", out
     return position
 
 
-def create_test_trade(session, condition_id="0xtest", token_id="0xtoken", outcome="YES", side="BUY", size=100.0, price=0.5, strategy="test"):
+def create_test_trade(session, order_id="order_test", token_id="0xtoken", side="BUY", size=100.0, price=0.5, strategy="test"):
     """Create a test trade in the database."""
     trade = Trade(
-        condition_id=condition_id,
+        order_id=order_id,
         token_id=token_id,
-        outcome=outcome,
         side=side,
         size=size,
         price=price,
-        strategy_name=strategy,
+        strategy=strategy,
     )
     session.add(trade)
     session.commit()

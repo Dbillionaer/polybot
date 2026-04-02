@@ -1,9 +1,9 @@
 # Project Intelligence
 
-- Last Updated: 2026-03-30 00:00:00 UTC
-- Version: v1.3
-- Last Change Summary: Added Phase 4 lessons on deduplication and telemetry seams.
-- Related Changes: `activeContext.md`, `progress.md`, `interactionHistory.md`
+- Last Updated: 2026-04-01 21:17:10 -04:00
+- Version: v1.4
+- Last Change Summary: Confirmed the SQLModel isolation fix pattern by applying it to the legacy-ledger regression and restoring a clean targeted verification baseline for Phase 4.
+- Related Changes: `activeContext.md`, `progress.md`, `interactionHistory.md`, `techContext.md`
 
 ## Stable Conventions
 
@@ -36,6 +36,9 @@
 - Preserve backward compatibility for existing fake test doubles when evolving runtime interfaces.
 - The safest seam for strategy-level operational telemetry is the strategy base-class callback wrapper, not the websocket transport itself.
 - For websocket stability issues, deduplicate at registration time instead of trying to clean up duplicates later during dispatch.
+- SQLModel tests that use persistent sqlite files should explicitly clear metadata with `SQLModel.metadata.drop_all(db_engine)` before recreating tables, or state can leak across tests.
+- When project phase focus changes, sync `progress.md`, `activeContext.md`, and `systemPatterns.md` together; otherwise interaction history can advance ahead of the core status files.
+- Keep the legacy-ledger regression in the targeted verification bundle because it protects the safety gate that blocks destructive repair when metadata is incomplete.
 
 ## Recovery Note
 

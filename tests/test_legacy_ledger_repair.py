@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 import unittest
 
-from sqlmodel import select
+from sqlmodel import SQLModel, select
 
 
 TEST_DB_PATH = Path("phase1_legacy_repair_test.db")
@@ -26,6 +26,7 @@ class LegacyLedgerRepairTest(unittest.TestCase):
     def setUp(self):
         if TEST_DB_PATH.exists():
             TEST_DB_PATH.unlink()
+        SQLModel.metadata.drop_all(db_engine)
         create_db_and_tables()
 
     def tearDown(self):

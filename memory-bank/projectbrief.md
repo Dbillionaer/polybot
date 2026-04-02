@@ -1,9 +1,9 @@
 # Project Brief
 
-- Last Updated: 2026-03-30 00:00:00 UTC
-- Version: v1.1
-- Last Change Summary: Replaced open project-brief questions with user-validated success metrics, milestone, and scope.
-- Related Changes: `productContext.md`, `activeContext.md`, `systemPatterns.md`, `techContext.md`, `progress.md`
+- Last Updated: 2026-04-01 21:17:10 -04:00
+- Version: v1.2
+- Last Change Summary: Updated the project focus to reflect a clean targeted verification baseline entering Phase 4 production-readiness work.
+- Related Changes: `productContext.md`, `activeContext.md`, `systemPatterns.md`, `techContext.md`, `progress.md`, `interactionHistory.md`
 
 ## Overview
 
@@ -37,7 +37,7 @@
 
 ## Current Project Focus
 
-[RECONSTRUCTED] Current roadmap focus is **Phase 1: execution and accounting integrity**. Structural fixes and live fill reconciliation are implemented; the next planned task is repairing legacy ledger rows written before the `condition_id` vs `token_id` fix.
+[RECONSTRUCTED] Current roadmap focus is **Phase 4: production readiness**. Phase 3 extraction/refactor work is complete, part of Phase 4 operational stability is already in place (websocket deduplication, strategy-safe callback wrappers, execution telemetry), and the targeted regression baseline is now clean again. The next work is the formal production-readiness checklist: integration harnesses, operational tooling, dry-run validation, and deployment documentation.
 
 ## Constraints
 

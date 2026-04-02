@@ -3,7 +3,7 @@
 import asyncio
 import json
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List
 
 import websockets
@@ -112,7 +112,7 @@ class PolyWebSocket:
 
                     while self.is_running:
                         message = await websocket.recv()
-                        self.last_message_at = datetime.utcnow()
+                        self.last_message_at = datetime.now(timezone.utc)
                         data = json.loads(message)
 
                         channel = data.get("channel")

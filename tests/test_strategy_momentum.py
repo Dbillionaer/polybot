@@ -222,8 +222,17 @@ class TestMomentumStrategy(unittest.TestCase):
         """Test that run() subscribes to all markets."""
         self.strategy.run()
         
-        # Should call subscribe for each token
-        self.assertEqual(self.mock_ws.subscribe.call_count, len(self.token_ids))
+        # subscribe_all() subscribes each token to both book and trades channels
+        self.assertEqual(self.mock_ws.subscribe.call_count, len(self.token_ids) * 2)
+        self.mock_ws.subscribe.assert_has_calls(
+            [
+                call("0xtoken1", "book"),
+                call("0xtoken1", "trades"),
+                call("0xtoken2", "book"),
+                call("0xtoken2", "trades"),
+            ],
+            any_order=False,
+        )
 
     def test_custom_imbalance_ratio(self):
         """Test strategy with custom imbalance ratio."""

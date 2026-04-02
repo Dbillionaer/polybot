@@ -1,226 +1,271 @@
-# Tests for strategies/ai_arb.py
-# Tests for AI-powered probability arbitrage using Grok (xAI)
+"""Tests for strategies/ai_arb.py — AI-powered probability arbitrage using Grok (xAI)."""
 
- 
-import unittest
-from unittest.mock import Mock, MagicMock, patch
+import json
 import os
+import unittest
+from unittest.mock import MagicMock, Mock, patch
 
 from strategies.ai_arb import AIArbStrategy
 
 
-class TestAIArbStrategy(unittest.TestCase):
-    """Tests for AIArbStrategy."""
+def _make_strategy(**overrides):
+    engine = Mock()
+    engine.risk_manager = Mock()
+    engine.risk_manager.calculate_kelly_size = Mock(return_value=0)
+    engine.risk_manager.check_trade_allowed = Mock(return_value=True)
+    engine.dry_run = True
+    engine.execute_limit_order = Mock()
+
+    ws = Mock()
+    ws.add_callback = Mock()
+    ws.subscribe = Mock()
+
+    defaults = dict(
+        engine=engine,
+        ws=ws,
+        market_name="Will BTC reach $100k by EOY?",
+        token_id="0xtoken123",
+        edge_threshold=0.12,
+        poll_interval_sec=1800,
+    )
+    defaults.update(overrides)
+
+    with patch("strategies.ai_arb.OpenAI") as MockOpenAI:
+        mock_ai_client = Mock()
+        MockOpenAI.return_value = mock_ai_client
+        strategy = AIArbStrategy(**defaults)
+        strategy._ai_client = mock_ai_client
+    return strategy, engine, ws
+
+
+class TestAIArbStrategyInit(unittest.TestCase):
+
+    def test_default_attributes(self):
+        s, _, _ = _make_strategy()
+        self.assertEqual(s.market_name, "Will BTC reach $100k by EOY?")
+        self.assertEqual(s.token_id, "0xtoken123")
+        self.assertEqual(s.edge_threshold, 0.12)
+        self.assertEqual(s.poll_interval_sec, 1800)
+        self.assertEqual(s._current_price, 0.5)
+        self.assertEqual(s.name, "AI-Arb")
+        self.assertEqual(s.token_ids, ["0xtoken123"])
+
+    def test_ws_callbacks_registered(self):
+        s, _, ws = _make_strategy()
+        self.assertEqual(ws.add_callback.call_count, 2)
+        ws.add_callback.assert_any_call("book", s._dispatch_market_update)
+        ws.add_callback.assert_any_call("trades", s._dispatch_trade_update)
+
+    def test_custom_threshold_and_interval(self):
+        s, _, _ = _make_strategy(edge_threshold=0.20, poll_interval_sec=600)
+        self.assertEqual(s.edge_threshold, 0.20)
+        self.assertEqual(s.poll_interval_sec, 600)
+
+
+class TestGetAiProbability(unittest.TestCase):
 
     def setUp(self):
-        """Set up test fixtures."""
-        self.mock_engine = Mock()
-        self.mock_engine.risk_manager = Mock()
-        self.mock_engine.risk_manager.calculate_kelly_size = Mock(return_value=100)
-        self.mock_engine.dry_run = True
-        self.mock_engine.execute_limit_order = Mock()
-        
-        self.mock_ws = Mock()
-        self.mock_ws.get_last_price = Mock(return_value=0.5)
-        self.mock_ws.subscribe = Mock()
-        
-        self.market_name = "Will BTC reach $100k by EOY?"
-        self.token_id = "0xtoken123"
-        
-        # Patch environment variable
-        self.xai_api_key_patcher = patch.dict(
-            XAI_API_KEY="test-api-key"
-        )
-        
-        self.strategy = AIArbStrategy(
-            engine=self.mock_engine,
-            ws=self.mock_ws,
-            market_name=self.market_name,
-            token_id=self.token_id,
-            edge_threshold=0.12,
-        )
+        self.s, _, _ = _make_strategy()
 
-    def test_initialization(self):
-        """Test strategy initialization."""
-        self.assertEqual(self.strategy.market_name, self.market_name)
-        self.assertEqual(self.strategy.token_id, self.token_id)
-        self.assertEqual(self.strategy.edge_threshold, 0.12)
-        self.assertEqual(self.strategy.poll_interval, 1800)
+    def test_returns_tuple_on_success(self):
+        mock_resp = Mock()
+        mock_resp.choices = [Mock(message=Mock(content=json.dumps({
+            "probability": 0.65,
+            "reasoning": "Strong bullish signal",
+        })))]
+        self.s._ai_client.chat.completions.create = Mock(return_value=mock_resp)
 
-    def test_initialization_without_api_key(self):
-        """Test that initialization fails without API key."""
-        with patch.dict(XAI_API_KEY=None):
-            with self.assertRaises(ValueError):
-                AIArbStrategy(
-                    engine=self.mock_engine,
-                    ws=self.mock_ws,
-                    market_name=self.market_name,
-                    token_id=self.token_id,
-                )
+        prob, reasoning = self.s.get_ai_probability()
 
-    @patch('strategies.ai_arb.OpenAI')
-    def test_get_ai_probability_success(self, mock_openai):
-        """Test successful AI probability query."""
-        mock_response = Mock()
-        mock_response.choices = [
-            Mock(message=Mock(content="The probability is 0.45"))
-        ]
-        mock_openai.return_value = mock_response
-        
-        result = self.strategy.get_ai_probability()
-        
-        self.assertIsNot(result)
-        self.assertEqual(result, 0.45)
-        mock_openai.chat.completions.create.assert_called_once()
+        self.assertAlmostEqual(prob, 0.65)
+        self.assertEqual(reasoning, "Strong bullish signal")
+        self.s._ai_client.chat.completions.create.assert_called_once()
 
-    @patch('strategies.ai_arb.OpenAI')
-    def test_get_ai_probability_api_error(self, mock_openai):
-        """Test handling of API error."""
-        mock_openai.chat.completions.create.side_effect = Exception("API error")
-        
-        result = self.strategy.get_ai_probability()
-        
-        self.assertIsNone(result)
+    def test_returns_none_tuple_on_api_error(self):
+        self.s._ai_client.chat.completions.create = Mock(side_effect=Exception("API error"))
 
-    @patch('strategies.ai_arb.OpenAI')
-    def test_get_ai_probability_invalid_response(self, mock_openai):
-        """Test handling of invalid API response."""
-        mock_response = Mock()
-        mock_response.choices = []
-        mock_openai.return_value = mock_response
-        
-        result = self.strategy.get_ai_probability()
-        
-        self.assertIsNone(result)
+        prob, reasoning = self.s.get_ai_probability()
 
-    @patch.object
-    def test_evaluate_edge_no_price(self, mock_get_price):
-        """Test evaluation when no price is available."""
-        mock_get_price.return_value = None
-        
-        result = self.strategy.evaluate_edge()
-        
-        self.assertIsNone(result)
+        self.assertIsNone(prob)
+        self.assertEqual(reasoning, "")
 
-    @patch.object
-    def test_evaluate_edge_no_probability(self, mock_get_prob):
-        """Test evaluation when no probability is available."""
-        mock_get_prob.return_value = None
-        
-        result = self.strategy.evaluate_edge()
-        
-        self.assertIsNone(result)
+    def test_returns_none_tuple_on_empty_choices(self):
+        mock_resp = Mock()
+        mock_resp.choices = []
+        self.s._ai_client.chat.completions.create = Mock(return_value=mock_resp)
 
-    @patch.object
-    def test_evaluate_edge_bullish_edge(self, mock_get_price, mock_get_prob, mock_calc_kelly):
-        """Test evaluation for bullish edge (AI says 0.45, market says 1.30)."""
-        mock_get_price.return_value = 1.30
-        mock_get_prob.return_value = 0.45
-        mock_calc_kelly.return_value = 100  # Large position
-        
-        self.strategy.evaluate_edge()
-        
-        # Should execute BUY order
-        self.mock_engine.execute_limit_order.assert_called_once()
-        call_args = self.mock_engine.execute_limit_order.call_args
-        self.assertEqual(call_args[0], self.token_id)  # token_id
-        self.assertEqual(call_args[1], 1.30)  # price
-        self.assertEqual(call_args[2], 100)  # size
-        self.assertEqual(call_args[3], "BUY")  # side
+        prob, reasoning = self.s.get_ai_probability()
 
-    @patch.object
-    def test_evaluate_edge_bearish_edge_trade_blocked(self, mock_get_price, mock_get_prob, mock_calc_kelly, mock_check_trade):
-        """Test that trade is blocked when risk check fails."""
-        mock_get_price.return_value = 1.30
-        mock_get_prob.return_value = 0.45
-        mock_calc_kelly.return_value = 100
-        mock_check_trade.return_value = False
-        
-        result = self.strategy.evaluate_edge()
-        
-        self.assertFalse(result)
-        self.mock_engine.execute_limit_order.assert_not_called()
+        self.assertIsNone(prob)
+        self.assertEqual(reasoning, "")
 
-    @patch.object
-    def test_evaluate_edge_bearish_edge_dry_run(self, mock_get_price, mock_get_prob, mock_calc_kelly, mock_check_trade):
-        """Test that order is logged in dry-run mode."""
-        mock_get_price.return_value = 1.30
-        mock_get_prob.return_value = 0.45
-        mock_calc_kelly.return_value = 100
-        mock_check_trade.return_value = True
-        self.mock_engine.dry_run = True
-        
-        self.strategy.evaluate_edge()
-        
-        # Should still call execute_limit_order in dry-run mode
-        self.mock_engine.execute_limit_order.assert_called_once()
+    def test_returns_none_tuple_on_invalid_json(self):
+        mock_resp = Mock()
+        mock_resp.choices = [Mock(message=Mock(content="not valid json"))]
+        self.s._ai_client.chat.completions.create = Mock(return_value=mock_resp)
 
-    @patch.object
-    def test_evaluate_edge_bearish_edge_live(self, mock_get_price, mock_get_prob, mock_calc_kelly, mock_check_trade):
-        """Test that order is executed in live mode."""
-        mock_get_price.return_value = 1.30
-        mock_get_prob.return_value = 0.45
-        mock_calc_kelly.return_value = 100
-        mock_check_trade.return_value = True
-        self.mock_engine.dry_run = False
-        
-        self.strategy.evaluate_edge()
-        
-        # Should call execute_limit_order with dry_run=False
-        call_args = self.mock_engine.execute_limit_order.call_args
-        self.assertEqual(call_args[5], False)  # dry_run=False
+        prob, reasoning = self.s.get_ai_probability()
 
-    @patch.object
-    def test_evaluate_edge_below_threshold(self, mock_get_price, mock_get_prob, mock_calc_kelly):
-        """Test that no trade when edge is below threshold."""
-        mock_get_price.return_value = 1.30
-        mock_get_prob.return_value = 0.51  # Only 1% edge
-        mock_calc_kelly.return_value = 0
-        
-        result = self.strategy.evaluate_edge()
-        
-        self.assertIsNone(result)
-        self.mock_engine.execute_limit_order.assert_not_called()
+        self.assertIsNone(prob)
+        self.assertEqual(reasoning, "")
 
-    @patch.object
-    def test_evaluate_edge_negative_edge(self, mock_get_price, mock_get_prob, mock_calc_kelly):
-        """Test that no trade when AI probability is lower than market."""
-        mock_get_price.return_value = 1.30
-        mock_get_prob.return_value = 0.20  # AI says 20%, market says 1.30
-        mock_calc_kelly.return_value = 0
-        
-        result = self.strategy.evaluate_edge()
-        
-        self.assertIsNone(result)
 
-    def test_on_market_update_non_book_event(self):
-        """Test that non-book events are ignored."""
-        data = {"event_type": "trade", "market": self.token_id}
-        
-        self.strategy.on_market_update(data)
-        
-        self.mock_ws.get_last_price.assert_not_called()
+class TestOnMarketUpdate(unittest.TestCase):
 
-    def test_on_market_update_wrong_market(self):
-        """Test that updates for wrong market are ignored."""
+    def setUp(self):
+        self.s, _, _ = _make_strategy()
+
+    def test_updates_price_from_book(self):
+        data = {
+            "event_type": "book",
+            "market": "0xtoken123",
+            "bids": [[0.45, 100]],
+            "asks": [[0.55, 200]],
+        }
+        self.s.on_market_update(data)
+        self.assertAlmostEqual(self.s._current_price, 0.50)
+
+    def test_ignores_non_book_event(self):
+        self.s._current_price = 0.42
+        data = {"event_type": "trade", "market": "0xtoken123"}
+        self.s.on_market_update(data)
+        self.assertAlmostEqual(self.s._current_price, 0.42)
+
+    def test_ignores_wrong_market(self):
+        self.s._current_price = 0.42
         data = {
             "event_type": "book",
             "market": "0xwrongtoken",
-            "bids": [[1.30, 100]],
-            "asks": [[1.31, 100]],
+            "bids": [[0.45, 100]],
+            "asks": [[0.55, 200]],
         }
-        
-        self.strategy.on_market_update(data)
-        
-        self.mock_ws.get_last_price.assert_not_called()
+        self.s.on_market_update(data)
+        self.assertAlmostEqual(self.s._current_price, 0.42)
 
-    def test_run_starts_loop(self):
-        """Test that run() starts the evaluation loop."""
-        with patch.object(self.strategy, '_loop', daemon=True) as mock_loop:
-            self.strategy.run()
-            
-            # Verify loop was started
-            mock_loop.assert_called_once()
+    def test_no_update_when_no_bids(self):
+        self.s._current_price = 0.42
+        data = {
+            "event_type": "book",
+            "market": "0xtoken123",
+            "bids": [],
+            "asks": [[0.55, 200]],
+        }
+        self.s.on_market_update(data)
+        self.assertAlmostEqual(self.s._current_price, 0.42)
+
+    def test_no_update_when_no_asks(self):
+        self.s._current_price = 0.42
+        data = {
+            "event_type": "book",
+            "market": "0xtoken123",
+            "bids": [[0.45, 100]],
+            "asks": [],
+        }
+        self.s.on_market_update(data)
+        self.assertAlmostEqual(self.s._current_price, 0.42)
+
+
+class TestEvaluateEdge(unittest.TestCase):
+
+    def setUp(self):
+        self.s, self.engine, _ = _make_strategy()
+
+    @patch.object(AIArbStrategy, "get_ai_probability", return_value=(None, ""))
+    def test_skips_when_ai_returns_none(self, _mock):
+        self.s._current_price = 0.50
+        self.s.evaluate_edge()
+        self.engine.execute_limit_order.assert_not_called()
+
+    def test_skips_when_price_is_zero(self):
+        self.s._current_price = 0.0
+        with patch.object(AIArbStrategy, "get_ai_probability") as m:
+            self.s.evaluate_edge()
+            m.assert_not_called()
+
+    @patch.dict(os.environ, {"BANKROLL_USDC": "2000"})
+    @patch.object(AIArbStrategy, "get_ai_probability", return_value=(0.70, "Bullish"))
+    def test_bullish_edge_places_buy(self, _mock):
+        self.s._current_price = 0.50
+        self.engine.risk_manager.calculate_kelly_size = Mock(return_value=50)
+        self.engine.risk_manager.check_trade_allowed = Mock(return_value=True)
+
+        self.s.evaluate_edge()
+
+        self.engine.execute_limit_order.assert_called_once()
+        args, kwargs = self.engine.execute_limit_order.call_args
+        self.assertEqual(args[0], "0xtoken123")  # token_id
+        self.assertAlmostEqual(args[1], 0.51)       # price = 0.50 + 0.01
+        self.assertEqual(args[2], 50)               # size
+        self.assertEqual(args[3], "BUY")            # side
+        self.assertEqual(args[4], "AI-Arb")         # strategy name
+        self.assertTrue(kwargs.get("dry_run"))
+
+    @patch.dict(os.environ, {"BANKROLL_USDC": "1000"})
+    @patch.object(AIArbStrategy, "get_ai_probability", return_value=(0.70, "Bullish"))
+    def test_bullish_edge_blocked_by_risk(self, _mock):
+        self.s._current_price = 0.50
+        self.engine.risk_manager.calculate_kelly_size = Mock(return_value=50)
+        self.engine.risk_manager.check_trade_allowed = Mock(return_value=False)
+
+        self.s.evaluate_edge()
+
+        self.engine.execute_limit_order.assert_not_called()
+
+    @patch.dict(os.environ, {"BANKROLL_USDC": "1000"})
+    @patch.object(AIArbStrategy, "get_ai_probability", return_value=(0.70, "Bullish"))
+    def test_bullish_edge_zero_kelly_size(self, _mock):
+        self.s._current_price = 0.50
+        self.engine.risk_manager.calculate_kelly_size = Mock(return_value=0)
+
+        self.s.evaluate_edge()
+
+        self.engine.execute_limit_order.assert_not_called()
+
+    @patch.dict(os.environ, {"BANKROLL_USDC": "1000"})
+    @patch.object(AIArbStrategy, "get_ai_probability", return_value=(0.51, "Slight edge"))
+    def test_below_threshold_no_trade(self, _mock):
+        self.s._current_price = 0.50
+        self.s.edge_threshold = 0.12
+
+        self.s.evaluate_edge()
+
+        self.engine.execute_limit_order.assert_not_called()
+
+    @patch.dict(os.environ, {"BANKROLL_USDC": "1000"})
+    @patch.object(AIArbStrategy, "get_ai_probability", return_value=(0.20, "Bearish"))
+    def test_negative_edge_no_buy(self, _mock):
+        self.s._current_price = 0.50
+        self.s.edge_threshold = 0.12
+
+        self.s.evaluate_edge()
+
+        self.engine.execute_limit_order.assert_not_called()
+
+    @patch.dict(os.environ, {"BANKROLL_USDC": "1000"})
+    @patch.object(AIArbStrategy, "get_ai_probability", return_value=(0.70, "Live trade"))
+    def test_live_mode_passes_dry_run_false(self, _mock):
+        self.s._current_price = 0.50
+        self.engine.dry_run = False
+        self.engine.risk_manager.calculate_kelly_size = Mock(return_value=50)
+        self.engine.risk_manager.check_trade_allowed = Mock(return_value=True)
+
+        self.s.evaluate_edge()
+
+        _, kwargs = self.engine.execute_limit_order.call_args
+        self.assertFalse(kwargs.get("dry_run"))
+
+
+class TestRun(unittest.TestCase):
+
+    def test_run_starts_thread_and_subscribes(self):
+        s, _, ws = _make_strategy()
+        with patch("strategies.ai_arb.threading.Thread") as MockThread:
+            s.run()
+            ws.subscribe.assert_called()
+            MockThread.assert_called_once()
+            kwargs = MockThread.call_args
+            self.assertTrue(kwargs[1].get("daemon"))
+            self.assertEqual(kwargs[1].get("name"), "AI-Arb-loop")
 
 
 if __name__ == "__main__":

@@ -29,7 +29,7 @@ import os
 import time
 import threading
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from loguru import logger
 
 
@@ -109,13 +109,13 @@ class CircuitBreaker:
             if not self._tripped:
                 return True
             # Check if cool-down has elapsed
-            if self._trip_time and datetime.utcnow() >= self._trip_time + timedelta(
+            if self._trip_time and datetime.now(timezone.utc) >= self._trip_time + timedelta(
                 minutes=self.cool_down_min
             ):
                 self._reset()
                 return True
             remaining = (
-                self._trip_time + timedelta(minutes=self.cool_down_min) - datetime.utcnow()
+                self._trip_time + timedelta(minutes=self.cool_down_min) - datetime.now(timezone.utc)
             ).seconds // 60
             logger.warning(
                 f"[CircuitBreaker] 🔴 OPEN — trading blocked for ~{remaining} more min. "
@@ -193,7 +193,7 @@ class CircuitBreaker:
 
     def _record_pnl_delta_locked(self, delta: float) -> None:
         """Internal rolling-drawdown update (must be called under lock)."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         cutoff = now - timedelta(minutes=self.drawdown_window_min)
 
         while self._pnl_window and self._pnl_window[0][0] < cutoff:
@@ -217,7 +217,7 @@ class CircuitBreaker:
 
         self._tripped = True
         self._trip_reason = reason
-        self._trip_time = datetime.utcnow()
+        self._trip_time = datetime.now(timezone.utc)
 
         msg = (
             f"⚡ CIRCUIT BREAKER TRIPPED — all trading paused for "

@@ -3,6 +3,8 @@ from pathlib import Path
 import sys
 import unittest
 
+from sqlmodel import SQLModel
+
 
 TEST_DB_PATH = Path("phase2_risk_pnl_test.db")
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH.as_posix()}"
@@ -14,35 +16,16 @@ from core.database import create_db_and_tables, engine as db_engine  # noqa: E40
 from engine.circuit_breaker import CircuitBreaker  # noqa: E402
 from engine.execution import ExecutionEngine  # noqa: E402
 from engine.risk import RiskManager  # noqa: E402
-
-
-class FakePolyClient:
-    def __init__(self):
-        self.orders = {}
-        self.post_count = 0
-        self.books = {
-            "tok-yes": {"bids": [[0.39, 100]], "asks": [[0.41, 100]]},
-        }
-
-    def check_neg_risk(self, _token_id: str) -> bool:
-        return False
-
-    def get_order_book(self, token_id: str):
-        return self.books[token_id]
-
-    def post_limit_order(self, token_id: str, price: float, size: int, side: str):
-        self.post_count += 1
-        order_id = f"order-{self.post_count}"
-        self.orders[order_id] = {"status": "live", "orderID": order_id}
-        return {"status": "live", "orderID": order_id}
+from tests.mocks.execution import MockPolyClient
 
 
 class RiskPnlPlumbingTest(unittest.TestCase):
     def setUp(self):
         if TEST_DB_PATH.exists():
             TEST_DB_PATH.unlink()
+        SQLModel.metadata.drop_all(db_engine)
         create_db_and_tables()
-        self.client = FakePolyClient()
+        self.client = MockPolyClient(books={"tok-yes": {"bids": [[0.39, 100]], "asks": [[0.41, 100]]}})
         self.risk_manager = RiskManager()
         self.circuit_breaker = CircuitBreaker(
             max_consecutive_errors=99,

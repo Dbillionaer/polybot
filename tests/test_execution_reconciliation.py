@@ -3,7 +3,7 @@ from pathlib import Path
 import sys
 import unittest
 
-from sqlmodel import select
+from sqlmodel import SQLModel, select
 
 
 TEST_DB_PATH = Path("phase1_reconciliation_test.db")
@@ -13,64 +13,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from core.database import Position, Trade, create_db_and_tables, engine as db_engine, get_session  # noqa: E402
 from engine.execution import ExecutionEngine  # noqa: E402
-
-
-class FakeCircuitBreaker:
-    def is_open(self):
-        return True
-
-    def record_success(self):
-        return None
-
-    def record_error(self, _message: str):
-        return None
-
-
-class FakeRiskManager:
-    def check_trade_allowed(self, *_args, **_kwargs):
-        return True
-
-
-class FakePolyClient:
-    def __init__(self):
-        self.orders = {}
-        self.post_count = 0
-
-    def check_neg_risk(self, _token_id: str) -> bool:
-        return False
-
-    def get_order_book(self, _token_id: str):
-        return {"bids": [[0.49, 100]], "asks": [[0.51, 100]]}
-
-    def post_limit_order(self, token_id: str, price: float, size: int, side: str):
-        self.post_count += 1
-        order_id = f"order-{self.post_count}"
-        self.orders[order_id] = {
-            "orderID": order_id,
-            "token_id": token_id,
-            "status": "live",
-            "price": str(price),
-            "original_size": str(size),
-            "size_matched": "0",
-            "side": side,
-        }
-        return {"success": True, "status": "live", "orderID": order_id}
-
-    def get_order(self, order_id: str):
-        return dict(self.orders[order_id])
+from tests.mocks.execution import MockCircuitBreaker, MockPolyClient, MockRiskManager
 
 
 class ExecutionReconciliationTest(unittest.TestCase):
     def setUp(self):
         if TEST_DB_PATH.exists():
             TEST_DB_PATH.unlink()
+        SQLModel.metadata.drop_all(db_engine)
         create_db_and_tables()
-        self.client = FakePolyClient()
+        self.client = MockPolyClient(books={"tok-yes": {"bids": [[0.49, 100]], "asks": [[0.51, 100]]}})
         self.engine = ExecutionEngine(
             self.client,
-            FakeRiskManager(),
+            MockRiskManager(),
             dry_run=False,
-            circuit_breaker=FakeCircuitBreaker(),
+            circuit_breaker=MockCircuitBreaker(),
         )
         self.engine.register_markets([
             {"token_id": "tok-yes", "condition_id": "cond-1", "outcome": "YES"}
