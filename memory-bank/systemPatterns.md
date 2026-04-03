@@ -1,8 +1,8 @@
 # System Patterns
 
-- Last Updated: 2026-04-03 00:51:17 -04:00
-- Version: v1.4
-- Last Change Summary: Updated architecture notes to include the operator control surface and persistent execution-layer pause gate used for live operator intervention.
+- Last Updated: 2026-04-03 04:17:30 -04:00
+- Version: v1.5
+- Last Change Summary: Expanded architecture notes for the browser operator dashboard, including richer status aggregation, `/dashboard` serving, and a static design-preview artifact.
 - Related Changes: `projectbrief.md`, `techContext.md`, `activeContext.md`, `progress.md`
 
 ## High-Level Architecture
@@ -88,6 +88,8 @@ PolyBot is organized into four main layers:
 - `OperatorController` aggregates runtime snapshot data from execution, websocket, circuit breaker, and DB-backed positions/trades.
 - Mutating operator actions are token-protected and currently limited to pause/resume trading, cancel-all, and reconciliation controls.
 - The operator surface is intended for supervised live sessions; it is not yet a full authenticated multi-user admin system.
+- The browser page now behaves like a real-time operator console: 3-second polling, portfolio summary cards, strategy state grid, open positions table, fills log, and health cards.
+- `/dashboard` serves the same operator page as `/`, and `ui/direct_view.html` exists as a static styling preview that does not require the runtime server.
 
 ### 12. Phase 3 engine split
 - `ExecutionEngine` remains the public interface used by strategies and `main.py`.
@@ -102,3 +104,4 @@ PolyBot is organized into four main layers:
 - A mock CLOB server and broader integration-test harness are not yet implemented.
 - JSON log output, backup/export utilities, and disaster-recovery runbooks are still missing from the production-readiness layer.
 - A supervised live-canary runbook and explicit operator stop-condition procedure are still missing.
+- Manual redeem is only a placeholder dashboard action right now; it is not wired to live redemption execution from the operator surface.

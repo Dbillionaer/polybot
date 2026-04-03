@@ -1,8 +1,8 @@
 # Tech Context
 
-- Last Updated: 2026-04-03 00:51:17 -04:00
-- Version: v1.2
-- Last Change Summary: Refreshed the technical context after the full mypy cleanup pass and restored local lint/type/test verification to a green state.
+- Last Updated: 2026-04-03 04:17:30 -04:00
+- Version: v1.3
+- Last Change Summary: Refreshed the technical context after the browser dashboard polish pass, including the static direct-view preview and the dashboard-specific verification commands.
 - Related Changes: `systemPatterns.md`, `interactionHistory.md`, `externalDocs.md`, `activeContext.md`, `progress.md`
 
 ## Core Stack
@@ -21,6 +21,7 @@
 - Persistence: SQLite via SQLModel
 - UI: terminal dashboard in `ui/dashboard.py`
 - Operator surface: localhost web admin UI in `ui/operator_server.py` / `ui/operator_controller.py`
+- Static UI preview: `ui/direct_view.html`
 
 ## Important Commands
 
@@ -34,6 +35,8 @@
 - Operator UI tests: `python -m pytest tests/test_operator_controller.py tests/test_operator_server.py -q`
 - Lint: `python -m ruff check .`
 - Typecheck: `python -m mypy .`
+- Dashboard-specific lint: `python -m ruff check ui/operator_controller.py ui/operator_server.py ui/operator_page.py main.py README.md`
+- Dashboard-specific typecheck: `python -m mypy ui/operator_controller.py ui/operator_server.py ui/operator_page.py main.py`
 
 ## Environment Patterns
 
@@ -62,3 +65,4 @@
 - The targeted verification baseline is green, but Phase 4 production-readiness tooling is still missing: integration harness, JSON logging option, backup/export utilities, disaster-recovery runbook, and dry-run documentation.
 - Ruff is now installed and passes.
 - Mypy now passes with `follow_imports = "skip"`; if stricter deep-import analysis is desired later, that should be treated as a separate tooling upgrade project.
+- The browser dashboard is now polished enough for supervised operation, but manual redeem remains a placeholder UI action rather than a live execution path.

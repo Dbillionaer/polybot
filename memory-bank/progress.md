@@ -1,8 +1,8 @@
 # Progress
 
-- Last Updated: 2026-04-03 00:51:17 -04:00
-- Version: v1.5
-- Last Change Summary: Completed the current mypy cleanup pass. Ruff, mypy, operator tests, and the 79-test regression suite now all pass, leaving Phase 4 blocked mainly on operational tooling and canary/runbook preparation rather than verification infrastructure.
+- Last Updated: 2026-04-03 04:17:30 -04:00
+- Version: v1.6
+- Last Change Summary: Upgraded the browser operator dashboard from a basic control page into a polished real-time trading console, added `/dashboard` serving and CORS handling, expanded operator status payloads, added README documentation, and created a static direct-view preview file for design inspection.
 - Related Changes: `activeContext.md`, `systemPatterns.md`, `interactionHistory.md`, `projectbrief.md`, `projectIntelligence.md`, `techContext.md`
 
 ## Current Status
@@ -40,6 +40,8 @@
 - Verified Phase 4 operational-stability suite passing: `tests/test_phase4_operational_stability.py` (3 tests)
 - Verified consolidated phase verification suite passing: 77 tests
 - Added localhost operator web UI/API with guarded actions for `cancel-all`, reconciliation start/stop, and persistent trading pause/resume
+- Upgraded the browser operator dashboard into a polished real-time console with portfolio cards, strategy state grid, open positions table, recent fills log, health panels, and live polling
+- Added static preview page at `ui/direct_view.html` for visual inspection without running the bot
 - Added package markers for `core/`, `engine/`, `strategies/`, and `ui/` to normalize import/package resolution
 - Verified operator control tests passing: 7 tests
 - Verified Ruff lint pass across the repo

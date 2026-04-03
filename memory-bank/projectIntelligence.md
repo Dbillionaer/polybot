@@ -1,8 +1,8 @@
 # Project Intelligence
 
-- Last Updated: 2026-04-03 00:51:17 -04:00
-- Version: v1.5
-- Last Change Summary: Updated lessons after finishing the mypy cleanup pass; the main operational gap is now canary/runbook discipline rather than Python tooling reliability.
+- Last Updated: 2026-04-03 04:17:30 -04:00
+- Version: v1.6
+- Last Change Summary: Added operator-dashboard UX lessons from the browser polish pass, including layout constraints for strategy cards and the value of a static direct-view preview during UI iteration.
 - Related Changes: `activeContext.md`, `progress.md`, `interactionHistory.md`, `techContext.md`
 
 ## Stable Conventions
@@ -43,6 +43,8 @@
 - Adding `__init__.py` package markers is a low-friction way to eliminate duplicate-module discovery issues in Python tooling without changing runtime architecture.
 - Setting `follow_imports = "skip"` in mypy is a pragmatic fix for repos that depend on large third-party libraries and need a usable local type-check gate.
 - The next highest-leverage safety work after green tooling is operator procedure design: exact pause, cancel, observe, and abort steps matter as much as code for a live canary.
+- For dense operator grids, forcing too many columns too early can make status badges collide with content; browser dashboards should degrade to fewer columns sooner than a typical marketing layout.
+- A static preview artifact like `ui/direct_view.html` is useful for rapid UI iteration when the live runtime is not needed to inspect layout/styling.
 
 ## Recovery Note
 

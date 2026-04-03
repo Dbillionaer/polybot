@@ -1,8 +1,8 @@
 # Interaction History
 
-- Last Updated: 2026-04-03 00:51:17 -04:00
-- Version: v1.6
-- Last Change Summary: Logged the completed mypy cleanup pass and the restoration of a fully green local verification stack.
+- Last Updated: 2026-04-03 04:17:30 -04:00
+- Version: v1.7
+- Last Change Summary: Logged the operator dashboard polish pass, README/dashboard documentation update, static preview creation, and the follow-up layout fix for strategy status badges.
 - Related Changes: `activeContext.md`, `progress.md`, `projectIntelligence.md`, `projectbrief.md`, `techContext.md`
 
 ## Policy
@@ -116,3 +116,18 @@
   - `python -m pytest tests/test_operator_controller.py tests/test_operator_server.py -q` -> 7 passed
   - `python -m pytest tests/test_legacy_ledger_repair.py tests/test_phase4_operational_stability.py tests/test_order_executor.py tests/test_fill_reconciler.py tests/test_telemetry_collector.py tests/test_execution_reconciliation.py tests/test_risk_pnl_plumbing.py tests/test_client.py tests/test_strategy_momentum.py tests/test_strategy_ai_arb.py tests/test_negrisk.py -q` -> 79 passed
 - Outcome: local verification stack is fully green again; remaining Phase 4 work is now operational/tooling scope, not broken tests or type-check infrastructure.
+
+### IH-2026-04-03-01
+- User requested a major polish pass on the already-implemented browser operator dashboard without changing the existing architecture.
+- Actions: upgraded `ui/operator_page.py` into a Tailwind-based dark trading-console UI, expanded `ui/operator_controller.py` status payloads for portfolio/health/fills/strategy cards, added `/dashboard` serving and simple CORS headers in `ui/operator_server.py`, documented the browser dashboard in `README.md`, and created `ui/direct_view.html` as a standalone preview artifact.
+- Verification:
+  - `python -m mypy ui/operator_controller.py ui/operator_server.py ui/operator_page.py main.py` -> passed
+  - `python -m pytest tests/test_operator_controller.py tests/test_operator_server.py -q` -> 7 passed
+  - `python -m ruff check ui/operator_controller.py ui/operator_server.py ui/operator_page.py main.py README.md` -> passed
+- Outcome: the operator web surface is now much more usable for supervised sessions and easier to inspect visually outside the running bot.
+
+### IH-2026-04-03-02
+- User reviewed the static preview and reported that strategy status pills still looked wrong inside narrow cards.
+- Actions: reduced the strategy-grid density and forced the pill below the title block in both `ui/operator_page.py` and `ui/direct_view.html`.
+- Verification: `python -m ruff check ui/operator_page.py` -> passed.
+- Outcome: strategy status cards now fit cleanly at the tested desktop width.
