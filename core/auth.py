@@ -1,10 +1,10 @@
 """Authentication module for PolyBot."""
 
 import os
-from dotenv import load_dotenv
 
-from loguru import logger
+from dotenv import load_dotenv
 from eth_account import Account
+from loguru import logger
 from py_clob_client.client import ClobClient
 
 load_dotenv()

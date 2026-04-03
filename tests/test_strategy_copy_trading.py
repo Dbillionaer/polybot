@@ -1,9 +1,9 @@
 """Tests for strategies/copy_trading.py — Smart Copy-Trading Strategy."""
 
-import unittest
-from unittest.mock import Mock, patch
 import threading
 import time
+import unittest
+from unittest.mock import Mock, patch
 
 from strategies.copy_trading import CopyTradingStrategy
 

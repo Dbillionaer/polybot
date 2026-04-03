@@ -1,17 +1,17 @@
 import os
-from pathlib import Path
 import sys
 import unittest
+from pathlib import Path
 
 from sqlmodel import SQLModel, select
-
 
 TEST_DB_PATH = Path("phase1_reconciliation_test.db")
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH.as_posix()}"
 os.environ["MAX_SPREAD"] = "1.0"
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from core.database import Position, Trade, create_db_and_tables, engine as db_engine, get_session  # noqa: E402
+from core.database import Position, Trade, create_db_and_tables, get_session  # noqa: E402
+from core.database import engine as db_engine
 from engine.execution import ExecutionEngine  # noqa: E402
 from tests.mocks.execution import MockCircuitBreaker, MockPolyClient, MockRiskManager
 

@@ -1,8 +1,8 @@
 # Progress
 
-- Last Updated: 2026-04-01 21:17:10 -04:00
-- Version: v1.4
-- Last Change Summary: Cleared the remaining legacy-ledger isolation failure by resetting SQLModel metadata in the test setup. The phase verification bundle is now fully green, so Phase 4 can proceed without that blocker.
+- Last Updated: 2026-04-03 00:51:17 -04:00
+- Version: v1.5
+- Last Change Summary: Completed the current mypy cleanup pass. Ruff, mypy, operator tests, and the 79-test regression suite now all pass, leaving Phase 4 blocked mainly on operational tooling and canary/runbook preparation rather than verification infrastructure.
 - Related Changes: `activeContext.md`, `systemPatterns.md`, `interactionHistory.md`, `projectbrief.md`, `projectIntelligence.md`, `techContext.md`
 
 ## Current Status
@@ -15,7 +15,7 @@
 ### Next Priority Tasks:
 1. Start the official Phase 4 checklist with the mock CLOB server and integration test suite
 2. Add the remaining production-readiness utilities: JSON logging, backup/export tooling, and disaster-recovery runbook
-3. Re-run broader validation after Phase 4 work, including lint, typecheck, and coverage confirmation
+3. Write the supervised micro-canary runbook and operator stop conditions
 4. Document and execute the 7-day dry-run before any live-capital rollout
 
 **Coverage Goal:** >=70% before production readiness is considered complete
@@ -39,7 +39,13 @@
 - Verified combined Phase 3/remediation regression suite passing: 74 tests across `tests/test_order_executor.py`, `tests/test_fill_reconciler.py`, `tests/test_telemetry_collector.py`, `tests/test_execution_reconciliation.py`, `tests/test_risk_pnl_plumbing.py`, `tests/test_client.py`, `tests/test_strategy_momentum.py`, `tests/test_strategy_ai_arb.py`, and `tests/test_negrisk.py`
 - Verified Phase 4 operational-stability suite passing: `tests/test_phase4_operational_stability.py` (3 tests)
 - Verified consolidated phase verification suite passing: 77 tests
+- Added localhost operator web UI/API with guarded actions for `cancel-all`, reconciliation start/stop, and persistent trading pause/resume
+- Added package markers for `core/`, `engine/`, `strategies/`, and `ui/` to normalize import/package resolution
+- Verified operator control tests passing: 7 tests
+- Verified Ruff lint pass across the repo
+- Verified mypy pass across the repo: 32 source files
+- Verified post-mypy-fix regression suite passing: 79 tests
 
 ## Known Issues
 - The official Phase 4 production-readiness deliverables are not yet implemented: mock CLOB server, integration suite, JSON logging option, backup/export tooling, disaster-recovery runbook, documented 7-day dry run, and README refresh
-- Lint, typecheck, and full coverage confirmation were not re-run during this memory-bank sync
+- There is still no finalized supervised micro-canary runbook or explicit operator stop-condition checklist for live capital

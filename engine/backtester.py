@@ -55,7 +55,7 @@ class Backtester:
         df = pd.DataFrame(self.trades)
         total_pnl = df['pnl'].sum() if 'pnl' in df.columns else 0.0
         win_rate = (df['pnl'] > 0).mean() if 'pnl' in df.columns else 0.0
-        
+
         logger.success("=== BACKTEST REPORT ===")
         logger.info(f"Total Trades: {len(self.trades)}")
         logger.info(f"Win Rate: {win_rate:.2%}")

@@ -18,8 +18,9 @@ References:
 from __future__ import annotations
 
 import os
-import requests
 from functools import lru_cache
+
+import requests
 from loguru import logger
 
 # ── Contract addresses ────────────────────────────────────────────────────────
@@ -90,7 +91,7 @@ NEG_RISK_ADAPTER_ABI = [
 # ── Market detection ──────────────────────────────────────────────────────────
 
 @lru_cache(maxsize=512)
-def _fetch_market_meta(token_id: str) -> dict:
+def _fetch_market_meta(token_id: str) -> dict[str, object]:
     """
     Fetch market metadata from Gamma API.  Cached per token_id to avoid hammering.
     Returns {} on any failure.
@@ -103,7 +104,7 @@ def _fetch_market_meta(token_id: str) -> dict:
         )
         resp.raise_for_status()
         data = resp.json()
-        if isinstance(data, list) and data:
+        if isinstance(data, list) and data and isinstance(data[0], dict):
             return data[0]
         if isinstance(data, dict):
             return data

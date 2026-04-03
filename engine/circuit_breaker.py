@@ -26,10 +26,12 @@ Usage:
 from __future__ import annotations
 
 import os
-import time
 import threading
 from collections import deque
 from datetime import datetime, timedelta, timezone
+from typing import Any
+from typing import Deque
+
 from loguru import logger
 
 
@@ -61,12 +63,12 @@ class CircuitBreaker:
 
     def __init__(
         self,
-        max_consecutive_errors: int = None,
-        drawdown_pct_trigger: float = None,
-        drawdown_window_minutes: int = None,
-        cool_down_minutes: int = None,
-        enabled: bool = None,
-    ):
+        max_consecutive_errors: int | None = None,
+        drawdown_pct_trigger: float | None = None,
+        drawdown_window_minutes: int | None = None,
+        cool_down_minutes: int | None = None,
+        enabled: bool | None = None,
+    ) -> None:
         enabled_env = os.getenv("CIRCUIT_BREAKER_ENABLED", "true").lower() in ("true", "1")
         self.enabled = enabled if enabled is not None else enabled_env
 
@@ -89,7 +91,7 @@ class CircuitBreaker:
         self._trip_time: datetime | None = None
         self._consecutive_errors: int = 0
         # Rolling PnL events: list of (timestamp, pnl_delta)
-        self._pnl_window: deque = deque()
+        self._pnl_window: Deque[tuple[datetime, float]] = deque()
         self._last_total_pnl: float | None = None
         self._initial_bankroll: float = float(os.getenv("BANKROLL_USDC", "1000"))
 
@@ -114,8 +116,14 @@ class CircuitBreaker:
             ):
                 self._reset()
                 return True
+            trip_time = self._trip_time
+            if trip_time is None:
+                logger.warning(
+                    f"[CircuitBreaker] 🔴 OPEN — trading blocked. Reason: {self._trip_reason}"
+                )
+                return False
             remaining = (
-                self._trip_time + timedelta(minutes=self.cool_down_min) - datetime.now(timezone.utc)
+                trip_time + timedelta(minutes=self.cool_down_min) - datetime.now(timezone.utc)
             ).seconds // 60
             logger.warning(
                 f"[CircuitBreaker] 🔴 OPEN — trading blocked for ~{remaining} more min. "
@@ -174,7 +182,7 @@ class CircuitBreaker:
             if delta:
                 self._record_pnl_delta_locked(delta)
 
-    def status_summary(self) -> dict:
+    def status_summary(self) -> dict[str, Any]:
         """Returns a dict suitable for dashboard display."""
         with self._lock:
             return {

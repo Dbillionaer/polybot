@@ -1,18 +1,19 @@
 import os
-from loguru import logger
+
 from dotenv import load_dotenv
+from loguru import logger
 
 # Load .env explicitly for tests
 load_dotenv()
 
 def verify_system():
     logger.info("Verifying system configurations...")
-    
+
     # Check DB
     try:
         from core.database import create_db_and_tables, get_session
         create_db_and_tables()
-        with get_session() as session:
+        with get_session():
             pass
         logger.success("Database Connection: OK")
     except Exception as e:
@@ -29,7 +30,7 @@ def verify_system():
             logger.error("Gamma API Connection: FAILED")
     except Exception as e:
         logger.error(f"Gamma API Connection Failed: {e}")
-        
+
     # Check Falcon API
     try:
         api_key = os.getenv("FALCON_API_KEY")
@@ -43,7 +44,7 @@ def verify_system():
             logger.warning("Falcon Analytics API: MISSING FALCON_API_KEY in .env")
     except Exception as e:
         logger.error(f"Falcon API Verification Failed: {e}")
-        
+
     # Check Web3
     try:
         rpc = os.getenv("POLYGON_RPC_URL")

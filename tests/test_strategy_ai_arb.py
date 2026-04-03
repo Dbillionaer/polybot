@@ -20,14 +20,14 @@ def _make_strategy(**overrides):
     ws.add_callback = Mock()
     ws.subscribe = Mock()
 
-    defaults = dict(
-        engine=engine,
-        ws=ws,
-        market_name="Will BTC reach $100k by EOY?",
-        token_id="0xtoken123",
-        edge_threshold=0.12,
-        poll_interval_sec=1800,
-    )
+    defaults = {
+        "engine": engine,
+        "ws": ws,
+        "market_name": "Will BTC reach $100k by EOY?",
+        "token_id": "0xtoken123",
+        "edge_threshold": 0.12,
+        "poll_interval_sec": 1800,
+    }
     defaults.update(overrides)
 
     with patch("strategies.ai_arb.OpenAI") as MockOpenAI:

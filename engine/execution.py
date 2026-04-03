@@ -12,11 +12,11 @@ from loguru import logger
 
 from core.client import PolyClient
 from core.database import get_open_positions, record_trade, update_position
+from engine.circuit_breaker import CircuitBreaker
 from engine.fill_reconciler import FillReconciler
 from engine.order_executor import OrderExecutor
-from engine.telemetry_collector import TelemetryCollector
 from engine.risk import RiskManager
-from engine.circuit_breaker import CircuitBreaker
+from engine.telemetry_collector import TelemetryCollector
 
 
 @dataclass(slots=True)
@@ -74,8 +74,12 @@ class ExecutionEngine:
         self.pending_orders: dict[str, AcceptedOrder] = {}
         self._mark_price_cache: dict[str, float] = {}
         self._pending_orders_lock = Lock()
+        self._operator_pause_lock = Lock()
         self._reconciliation_stop = Event()
         self._reconciliation_thread: Thread | None = None
+        self._operator_trading_paused = False
+        self._operator_pause_reason = ""
+        self._operator_pause_at: datetime | None = None
         self.telemetry = TelemetryCollector()
         self.order_executor = OrderExecutor(
             client=self.client,
@@ -104,7 +108,39 @@ class ExecutionEngine:
 
     def get_telemetry_snapshot(self) -> dict[str, Any]:
         """Return execution telemetry for UI/operator use."""
-        return self.telemetry.snapshot()
+        return dict(self.telemetry.snapshot())
+
+    def pause_operator_trading(self, reason: str = "") -> bool:
+        """Persistently block new order submissions until explicitly resumed."""
+        with self._operator_pause_lock:
+            self._operator_trading_paused = True
+            self._operator_pause_reason = reason.strip()
+            self._operator_pause_at = datetime.now(timezone.utc)
+        logger.warning(
+            "[Execution] Operator pause enabled. New orders blocked."
+            + (f" Reason: {self._operator_pause_reason}" if self._operator_pause_reason else "")
+        )
+        return True
+
+    def resume_operator_trading(self) -> bool:
+        """Release the persistent operator trading pause."""
+        with self._operator_pause_lock:
+            was_paused = self._operator_trading_paused
+            self._operator_trading_paused = False
+            self._operator_pause_reason = ""
+            self._operator_pause_at = None
+        if was_paused:
+            logger.info("[Execution] Operator pause cleared. New orders allowed.")
+        return True
+
+    def get_operator_trading_status(self) -> dict[str, Any]:
+        """Return the persistent operator pause state for admin surfaces."""
+        with self._operator_pause_lock:
+            return {
+                "paused": self._operator_trading_paused,
+                "reason": self._operator_pause_reason,
+                "paused_at": self._operator_pause_at.isoformat() if self._operator_pause_at else None,
+            }
 
     def _pop_pending_order(self, order_id: str) -> AcceptedOrder | None:
         """Remove and return a pending order under lock."""
@@ -161,7 +197,7 @@ class ExecutionEngine:
 
     def refresh_mark_to_market(self) -> dict[str, Any]:
         """Refresh unrealized PnL from open positions using current mid prices."""
-        return self.fill_reconciler.refresh_mark_to_market()
+        return dict(self.fill_reconciler.refresh_mark_to_market())
 
     def register_markets(self, markets: list[dict[str, Any]]) -> None:
         """Register discovered market metadata for later fill accounting."""
@@ -278,11 +314,12 @@ class ExecutionEngine:
                     if order_id in self.pending_orders
                 ]
 
-        return self.fill_reconciler.reconcile_pending_orders(
+        reconciled_events = self.fill_reconciler.reconcile_pending_orders(
             pending_snapshot=pending_snapshot,
             mark_order_cancelled=self.mark_order_cancelled,
             record_strategy_error=self.record_strategy_error,
         )
+        return list(reconciled_events)
 
     def start_fill_reconciliation(self, poll_interval_seconds: float = 2.0) -> bool:
         """Start a background poller that reconciles pending orders against live CLOB status."""
@@ -329,6 +366,11 @@ class ExecutionEngine:
         self._reconciliation_thread = None
         logger.info("[Execution] Fill reconciliation poller stopped.")
 
+    def is_fill_reconciliation_running(self) -> bool:
+        """Return whether the background reconciliation poller is currently active."""
+        thread = self._reconciliation_thread
+        return bool(thread is not None and thread.is_alive())
+
     # ──────────────────────────────────────────────────────────────────────
     # Order execution
     # ──────────────────────────────────────────────────────────────────────
@@ -358,6 +400,14 @@ class ExecutionEngine:
         )
 
         # ── 0. Circuit breaker check ──────────────────────────────────────
+        operator_pause = self.get_operator_trading_status()
+        if operator_pause["paused"]:
+            logger.warning(
+                f"[Execution] Operator pause active — skipping {side} {size}x{token_id[:12]}… "
+                f"from {strategy_name}."
+            )
+            return None
+
         trading_allowed_fn = getattr(self.circuit_breaker, "allows_trading", None)
         trading_allowed = (
             trading_allowed_fn()
@@ -418,7 +468,7 @@ class ExecutionEngine:
                 f"[Execution] Order FAILED for {strategy_name} on {token_id[:12]}… — "
                 f"Response: {response}"
             )
-            self.record_strategy_error(strategy_name, "order_rejected", response)
+            self.record_strategy_error(strategy_name, "order_rejected", str(response))
             self.circuit_breaker.record_error(f"order rejected: {response}")
             return response
 

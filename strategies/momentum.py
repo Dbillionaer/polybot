@@ -2,12 +2,11 @@
 
 import time
 from collections import deque
-from typing import Union, List
 
 from loguru import logger
 
-from engine.execution import ExecutionEngine
 from core.ws import PolyWebSocket
+from engine.execution import ExecutionEngine
 from strategies.base import BaseStrategy
 
 
@@ -21,7 +20,7 @@ class MomentumStrategy(BaseStrategy):
         self,
         engine: ExecutionEngine,
         ws: PolyWebSocket,
-        token_ids: Union[str, List[str]],
+        token_ids: str | list[str],
         imbalance_ratio: float = 5.0,
         volume_surge_mult: float = 3.0,
         scalp_size: int = 50,

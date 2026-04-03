@@ -1,8 +1,8 @@
 # Project Intelligence
 
-- Last Updated: 2026-04-01 21:17:10 -04:00
-- Version: v1.4
-- Last Change Summary: Confirmed the SQLModel isolation fix pattern by applying it to the legacy-ledger regression and restoring a clean targeted verification baseline for Phase 4.
+- Last Updated: 2026-04-03 00:51:17 -04:00
+- Version: v1.5
+- Last Change Summary: Updated lessons after finishing the mypy cleanup pass; the main operational gap is now canary/runbook discipline rather than Python tooling reliability.
 - Related Changes: `activeContext.md`, `progress.md`, `interactionHistory.md`, `techContext.md`
 
 ## Stable Conventions
@@ -39,6 +39,10 @@
 - SQLModel tests that use persistent sqlite files should explicitly clear metadata with `SQLModel.metadata.drop_all(db_engine)` before recreating tables, or state can leak across tests.
 - When project phase focus changes, sync `progress.md`, `activeContext.md`, and `systemPatterns.md` together; otherwise interaction history can advance ahead of the core status files.
 - Keep the legacy-ledger regression in the targeted verification bundle because it protects the safety gate that blocks destructive repair when metadata is incomplete.
+- `cancel_all_open_orders()` is not a sufficient emergency control by itself; a persistent execution-layer pause gate is required so strategies cannot immediately re-enter after mass cancellation.
+- Adding `__init__.py` package markers is a low-friction way to eliminate duplicate-module discovery issues in Python tooling without changing runtime architecture.
+- Setting `follow_imports = "skip"` in mypy is a pragmatic fix for repos that depend on large third-party libraries and need a usable local type-check gate.
+- The next highest-leverage safety work after green tooling is operator procedure design: exact pause, cancel, observe, and abort steps matter as much as code for a live canary.
 
 ## Recovery Note
 

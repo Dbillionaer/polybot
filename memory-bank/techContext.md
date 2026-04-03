@@ -1,8 +1,8 @@
 # Tech Context
 
-- Last Updated: 2026-04-01 21:17:10 -04:00
-- Version: v1.1
-- Last Change Summary: Updated the verification commands and caveats after clearing the legacy-ledger isolation failure and restoring a clean targeted regression baseline.
+- Last Updated: 2026-04-03 00:51:17 -04:00
+- Version: v1.2
+- Last Change Summary: Refreshed the technical context after the full mypy cleanup pass and restored local lint/type/test verification to a green state.
 - Related Changes: `systemPatterns.md`, `interactionHistory.md`, `externalDocs.md`, `activeContext.md`, `progress.md`
 
 ## Core Stack
@@ -20,6 +20,7 @@
 - Settlement chain: Polygon
 - Persistence: SQLite via SQLModel
 - UI: terminal dashboard in `ui/dashboard.py`
+- Operator surface: localhost web admin UI in `ui/operator_server.py` / `ui/operator_controller.py`
 
 ## Important Commands
 
@@ -30,6 +31,9 @@
 - Phase 4 stability test: `python -m pytest tests/test_phase4_operational_stability.py -q`
 - Legacy repair regression: `python -m pytest tests/test_legacy_ledger_repair.py -q`
 - Combined Phase 3/remediation regressions: `python -m pytest tests/test_order_executor.py tests/test_fill_reconciler.py tests/test_telemetry_collector.py tests/test_execution_reconciliation.py tests/test_risk_pnl_plumbing.py tests/test_client.py tests/test_strategy_momentum.py tests/test_strategy_ai_arb.py tests/test_negrisk.py -q`
+- Operator UI tests: `python -m pytest tests/test_operator_controller.py tests/test_operator_server.py -q`
+- Lint: `python -m ruff check .`
+- Typecheck: `python -m mypy .`
 
 ## Environment Patterns
 
@@ -55,5 +59,6 @@
 ## Current Technical Caveats
 
 - Existing SQLite files may still contain stale data from pre-fix accounting logic, so repair/audit flows remain important before live deployment.
-- Lint, typecheck, and exact coverage status were not re-verified during this memory-bank sync.
 - The targeted verification baseline is green, but Phase 4 production-readiness tooling is still missing: integration harness, JSON logging option, backup/export utilities, disaster-recovery runbook, and dry-run documentation.
+- Ruff is now installed and passes.
+- Mypy now passes with `follow_imports = "skip"`; if stricter deep-import analysis is desired later, that should be treated as a separate tooling upgrade project.

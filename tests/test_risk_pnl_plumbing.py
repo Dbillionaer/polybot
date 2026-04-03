@@ -1,10 +1,9 @@
 import os
-from pathlib import Path
 import sys
 import unittest
+from pathlib import Path
 
 from sqlmodel import SQLModel
-
 
 TEST_DB_PATH = Path("phase2_risk_pnl_test.db")
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH.as_posix()}"
@@ -12,7 +11,8 @@ os.environ["BANKROLL_USDC"] = "1000"
 os.environ["MAX_SPREAD"] = "1.0"
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from core.database import create_db_and_tables, engine as db_engine  # noqa: E402
+from core.database import create_db_and_tables  # noqa: E402
+from core.database import engine as db_engine
 from engine.circuit_breaker import CircuitBreaker  # noqa: E402
 from engine.execution import ExecutionEngine  # noqa: E402
 from engine.risk import RiskManager  # noqa: E402

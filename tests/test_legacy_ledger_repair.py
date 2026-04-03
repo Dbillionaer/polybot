@@ -1,11 +1,10 @@
 import os
-from datetime import datetime
-from pathlib import Path
 import sys
 import unittest
+from datetime import datetime
+from pathlib import Path
 
 from sqlmodel import SQLModel, select
-
 
 TEST_DB_PATH = Path("phase1_legacy_repair_test.db")
 os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH.as_posix()}"
@@ -16,9 +15,11 @@ from core.database import (  # noqa: E402
     Trade,
     audit_legacy_ledger,
     create_db_and_tables,
-    engine as db_engine,
     get_session,
     repair_legacy_positions_from_trades,
+)
+from core.database import (
+    engine as db_engine,
 )
 
 

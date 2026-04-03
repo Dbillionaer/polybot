@@ -1,8 +1,8 @@
 # Interaction History
 
-- Last Updated: 2026-04-01 21:17:10 -04:00
-- Version: v1.5
-- Last Change Summary: Added the legacy-ledger isolation fix and post-fix verification run, leaving Phase 4 unblocked at the targeted regression level.
+- Last Updated: 2026-04-03 00:51:17 -04:00
+- Version: v1.6
+- Last Change Summary: Logged the completed mypy cleanup pass and the restoration of a fully green local verification stack.
 - Related Changes: `activeContext.md`, `progress.md`, `projectIntelligence.md`, `projectbrief.md`, `techContext.md`
 
 ## Policy
@@ -97,3 +97,22 @@
 - User requested expansion of `memory-bank/externalDocs.md` with official Polymarket auth, order/trade state, Gamma metadata, NegRisk/redeem, rate-limit, trading-constraint, Polygon/USDC, and authoritative SDK references.
 - Actions: fetched current official Polymarket docs and rebuilt `memory-bank/externalDocs.md` into a curated source map with official URLs, verification dates, relevance notes, and key operational takeaways.
 - Outcome: external references are now broad enough to support Phase 4 integration, dry-run, and runbook work.
+
+### IH-2026-04-02-01
+- User asked to keep going, install Ruff, and continue with the next verification steps while maintaining a todo list.
+- Actions: installed `ruff`, added package markers for major source directories, updated Ruff config, built the first operator web control surface, then extended it with persistent trading pause/resume controls at the execution layer.
+- Verification:
+  - `python -m pytest tests/test_operator_controller.py tests/test_operator_server.py -q` -> 7 passed
+  - `python -m pytest tests/test_legacy_ledger_repair.py tests/test_phase4_operational_stability.py tests/test_order_executor.py tests/test_fill_reconciler.py tests/test_telemetry_collector.py tests/test_execution_reconciliation.py tests/test_risk_pnl_plumbing.py tests/test_client.py tests/test_strategy_momentum.py tests/test_strategy_ai_arb.py tests/test_negrisk.py -q` -> 79 passed
+  - `python -m ruff check .` -> passed
+  - `python -m mypy .` -> timed out after duplicate-module fix; unresolved
+- Outcome: operator control is materially safer, linting is now active and green, and mypy remains the next tooling issue to resolve.
+
+### IH-2026-04-02-02
+- User asked how many mypy errors remained, requested prioritization, then asked for a todo list and systematic fixes in priority order.
+- Actions: fixed high-priority typing issues in `core/ws.py`, `engine/circuit_breaker.py`, `core/retry.py`, `engine/order_executor.py`, and `engine/execution.py`; fixed medium-priority issues in `core/client.py`, `core/data.py`, `core/negrisk.py`, and `strategies/amm.py`; fixed lower-priority SQLModel/UI issues in `core/database.py`, `ui/operator_server.py`, `ui/operator_controller.py`, `ui/dashboard.py`, and `strategies/base.py`.
+- Verification:
+  - `python -m mypy .` -> passed, 32 source files checked
+  - `python -m pytest tests/test_operator_controller.py tests/test_operator_server.py -q` -> 7 passed
+  - `python -m pytest tests/test_legacy_ledger_repair.py tests/test_phase4_operational_stability.py tests/test_order_executor.py tests/test_fill_reconciler.py tests/test_telemetry_collector.py tests/test_execution_reconciliation.py tests/test_risk_pnl_plumbing.py tests/test_client.py tests/test_strategy_momentum.py tests/test_strategy_ai_arb.py tests/test_negrisk.py -q` -> 79 passed
+- Outcome: local verification stack is fully green again; remaining Phase 4 work is now operational/tooling scope, not broken tests or type-check infrastructure.

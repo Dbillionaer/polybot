@@ -1,8 +1,8 @@
 # Active Context
 
-- Last Updated: 2026-04-01 21:17:10 -04:00
-- Version: v1.4
-- Last Change Summary: Removed the last known verification blocker by fixing the legacy-ledger test isolation leak. Phase 4 can now proceed from a clean targeted regression baseline.
+- Last Updated: 2026-04-03 00:51:17 -04:00
+- Version: v1.5
+- Last Change Summary: Finished the mypy cleanup pass and restored the full local verification stack. Current Phase 4 focus has shifted from tooling stabilization to operational readiness and canary procedure design.
 - Related Changes: `progress.md`, `systemPatterns.md`, `interactionHistory.md`, `projectbrief.md`, `projectIntelligence.md`, `techContext.md`
 
 ## Current Focus
@@ -24,19 +24,23 @@ All project tracking remains exclusively through the defined memory-bank core fi
 - Phase 1: COMPLETE
 - Phase 2: partially complete, but current branch state no longer maps cleanly onto the original checklist
 - Phase 3: COMPLETE - engine extraction, mock consolidation, datetime cleanup, and stale-test remediation are done
-- Phase 4: PARTIALLY STARTED - operational stability work is landed, targeted regressions are clean, and production-readiness utilities and validation workflow still need implementation
+- Phase 4: PARTIALLY STARTED - operational stability work is landed, the first operator control surface is implemented, and the local verification stack is green; broader production-readiness utilities and canary/runbook work still need implementation
 
 ### Verified Checks
 - `python -m pytest tests/test_phase4_operational_stability.py -q` -> 3 passed
 - `python -m pytest tests/test_order_executor.py tests/test_fill_reconciler.py tests/test_telemetry_collector.py tests/test_execution_reconciliation.py tests/test_risk_pnl_plumbing.py tests/test_client.py tests/test_strategy_momentum.py tests/test_strategy_ai_arb.py tests/test_negrisk.py -q` -> 74 passed
 - `python -m pytest tests/test_legacy_ledger_repair.py -q` -> 2 passed
 - `python -m pytest tests/test_phase4_operational_stability.py tests/test_order_executor.py tests/test_fill_reconciler.py tests/test_telemetry_collector.py tests/test_execution_reconciliation.py tests/test_risk_pnl_plumbing.py tests/test_client.py tests/test_strategy_momentum.py tests/test_strategy_ai_arb.py tests/test_negrisk.py -q` -> 77 passed
+- `python -m pytest tests/test_operator_controller.py tests/test_operator_server.py -q` -> 7 passed
+- `python -m pytest tests/test_legacy_ledger_repair.py tests/test_phase4_operational_stability.py tests/test_order_executor.py tests/test_fill_reconciler.py tests/test_telemetry_collector.py tests/test_execution_reconciliation.py tests/test_risk_pnl_plumbing.py tests/test_client.py tests/test_strategy_momentum.py tests/test_strategy_ai_arb.py tests/test_negrisk.py -q` -> 79 passed
+- `python -m ruff check .` -> passed
+- `python -m mypy .` -> passed (32 source files checked)
 
 ## Immediate Next Steps
 
 1. Begin the official Phase 4 deliverables with the mock CLOB server and integration suite
 2. Add JSON logging, backup/export tooling, and the disaster-recovery runbook
-3. After Phase 4 implementation work, re-run broader validation including lint, typecheck, and coverage confirmation
+3. Prepare and document the supervised micro-canary runbook, operator controls, and stop conditions
 4. Prepare and document the 7-day dry-run workflow before live-capital rollout
 
 ## Important Working Assumptions

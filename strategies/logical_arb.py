@@ -1,11 +1,10 @@
 """Logical arbitrage across mutually-exclusive market outcomes."""
 
-from typing import List, Dict, Union
 
 from loguru import logger
 
-from engine.execution import ExecutionEngine
 from core.ws import PolyWebSocket
+from engine.execution import ExecutionEngine
 from strategies.base import BaseStrategy
 
 
@@ -20,7 +19,7 @@ class LogicalArbStrategy(BaseStrategy):
         self,
         engine: ExecutionEngine,
         ws: PolyWebSocket,
-        markets: List[Dict],
+        markets: list[dict],
         threshold: float = 1.05,
         arb_size: int = 80,
     ):
@@ -31,8 +30,8 @@ class LogicalArbStrategy(BaseStrategy):
         self.markets = markets
         self.threshold = threshold
         self.arb_size = arb_size
-        self.prices: Dict[str, float] = {}
-        self.condition_families: Dict[str, List[str]] = {}
+        self.prices: dict[str, float] = {}
+        self.condition_families: dict[str, list[str]] = {}
 
         for market in markets:
             token_id = market.get("token_id")

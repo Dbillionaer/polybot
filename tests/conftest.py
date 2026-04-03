@@ -5,14 +5,13 @@ import os
 import tempfile
 
 import pytest
-from sqlmodel import SQLModel, Session, create_engine
+from sqlmodel import Session, SQLModel, create_engine
 
 # Core imports for mocking
 from core.client import PolyClient
 from core.database import Position, Trade, init_db
-from engine.risk import RiskManager
 from engine.circuit_breaker import CircuitBreaker
-
+from engine.risk import RiskManager
 
 # ──────────────────────────────────────────────────────────────────────────
 # Database Fixtures
@@ -23,18 +22,18 @@ def test_db():
     """Create an in-memory SQLite database for testing."""
     # Create temporary file for database
     db_fd, db_path = tempfile.mkstemp(suffix=".db")
-    
+
     # Create engine
     engine = create_engine(f"sqlite:///{db_path}")
-    
+
     # Initialize tables
     SQLModel.metadata.create_all(engine)
-    
+
     # Create session
     session = Session(engine)
-    
+
     yield session
-    
+
     # Cleanup
     os.unlink(db_path)
 
@@ -53,16 +52,16 @@ def test_db_path():
 
 class MockPolyClient:
     """Mock PolyClient for testing."""
-    
+
     def __init__(self):
         self.orders = {}
         self.order_counter = 0
         self.balance = 1000.0
-    
+
     def post_limit_order(self, token_id: str, side: str, price: float, size: int, **kwargs) -> dict:
         order_id = f"order_{self.order_counter}"
         self.order_counter += 1
-        
+
         order = {
             "order_id": order_id,
             "token_id": token_id,
@@ -73,25 +72,25 @@ class MockPolyClient:
         }
         self.orders[order_id] = order
         return order
-    
+
     def get_order(self, order_id: str) -> dict | None:
         return self.orders.get(order_id)
-    
+
     def cancel_order(self, order_id: str) -> bool:
         if order_id in self.orders:
             del self.orders[order_id]
             return True
         return False
-    
+
     def get_order_book(self, token_id: str) -> dict:
         return {
             "bids": [[0.45, 100]],
             "asks": [[0.55, 100]],
         }
-    
+
     def get_balance(self) -> float:
         return self.balance
-    
+
     def set_balance(self, balance: float):
         self.balance = balance
 
@@ -108,19 +107,19 @@ def mock_client():
 
 class MockRiskManager:
     """Mock RiskManager for testing."""
-    
+
     def __init__(self):
         self.daily_pnl = 0.0
         self.realized_pnl = 0.0
         self.trades_allowed = True
-    
+
     def check_trade_allowed(self, strategy_name: str, price: float, size: int, side: str) -> bool:
         return self.trades_allowed
-    
+
     def record_realized_pnl(self, pnl_delta: float):
         self.realized_pnl += pnl_delta
         self.daily_pnl += pnl_delta
-    
+
     def snapshot(self) -> dict:
         return {
             "daily_pnl": self.daily_pnl,
@@ -140,26 +139,26 @@ def mock_risk_manager():
 
 class MockCircuitBreaker:
     """Mock CircuitBreaker for testing."""
-    
+
     def __init__(self):
         self.tripped = False
         self.enabled = True
-    
+
     def allows_trading(self) -> bool:
         return self.enabled and not self.tripped
-    
+
     def is_open(self) -> bool:
         return self.tripped
-    
+
     def record_error(self, context: str = "") -> None:
         pass
-    
+
     def record_success(self) -> None:
         pass
-    
+
     def record_pnl_delta(self, delta: float) -> None:
         pass
-    
+
     def status_summary(self) -> dict:
         return {
             "enabled": self.enabled,
@@ -180,18 +179,18 @@ def mock_circuit_breaker():
 
 class MockWebSocket:
     """Mock WebSocket for testing."""
-    
+
     def __init__(self):
         self.subscriptions = {}
         self.connected = False
-    
+
     def subscribe(self, channel: str, callback) -> None:
         self.subscriptions[channel] = callback
-    
+
     def unsubscribe(self, channel: str) -> None:
         if channel in self.subscriptions:
             del self.subscriptions[channel]
-    
+
     def simulate_message(self, channel: str, data: dict) -> None:
         if channel in self.subscriptions:
                 self.subscriptions[channel](data)

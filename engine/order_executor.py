@@ -102,6 +102,18 @@ class OrderExecutor:
             self.circuit_breaker.record_error(f"post_limit_order: {exc}")
             return None
 
+        if not isinstance(response, dict):
+            logger.error(
+                f"[Execution] post_limit_order returned unexpected payload type: {type(response).__name__}"
+            )
+            self.record_strategy_error(
+                strategy_name,
+                "post_limit_order",
+                f"unexpected payload type: {type(response).__name__}",
+            )
+            self.circuit_breaker.record_error("post_limit_order returned non-dict payload")
+            return None
+
         return response
 
     def cancel_live_order(self, order_id: str) -> bool:

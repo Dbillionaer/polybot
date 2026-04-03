@@ -1,8 +1,8 @@
 # System Patterns
 
-- Last Updated: 2026-04-01 20:32:23 -04:00
-- Version: v1.3
-- Last Change Summary: Synced architecture notes with the current branch reality: Phase 3 engine split is complete, and Phase 4 operational-stability work now includes websocket deduplication and execution telemetry seams.
+- Last Updated: 2026-04-03 00:51:17 -04:00
+- Version: v1.4
+- Last Change Summary: Updated architecture notes to include the operator control surface and persistent execution-layer pause gate used for live operator intervention.
 - Related Changes: `projectbrief.md`, `techContext.md`, `activeContext.md`, `progress.md`
 
 ## High-Level Architecture
@@ -12,7 +12,7 @@ PolyBot is organized into four main layers:
 1. **Core** — external integrations and persistence (`auth`, `client`, `data`, `database`, `ws`, `negrisk`, `retry`)
 2. **Engine** — execution, risk, circuit breaker, backtesting
 3. **Strategies** — momentum, logical arb, AMM, AI arb, copy trading
-4. **UI / Ops** — Rich dashboard, logs, health checks, optional schedulers
+4. **UI / Ops** — Rich dashboard, operator web surface, logs, health checks, optional schedulers
 
 ## Runtime Flow
 
@@ -26,7 +26,8 @@ PolyBot is organized into four main layers:
 6. register market metadata into execution layer
 7. start optional services (health check, auto-claim, fill reconciler)
 8. build enabled strategies
-9. run dashboard or idle loop until shutdown
+9. optionally start the operator web surface
+10. run dashboard or idle loop until shutdown
 
 ## Critical Implementation Patterns
 
@@ -35,6 +36,7 @@ PolyBot is organized into four main layers:
 - `ExecutionEngine` is now primarily an orchestration facade over focused engine helpers.
 - `OrderExecutor` owns order-book checks, spread validation, dry-run behavior, and live order submission/cancellation.
 - Strategies should rely on shared engine services rather than direct order posting.
+- A persistent operator pause gate now exists in `ExecutionEngine`; it blocks all new order submissions until explicitly resumed and is stronger than `cancel_all_open_orders()` alone.
 
 ### 2. Correct identity model
 - `condition_id` = market family / market identity.
@@ -81,7 +83,13 @@ PolyBot is organized into four main layers:
 - Current metrics include fill latency, adverse slippage, and per-strategy order attempts / accepted orders / fill events / error counts.
 - Telemetry is intentionally in-memory and lightweight; it is not yet persisted historically.
 
-### 11. Phase 3 engine split
+### 11. Operator control surface
+- `OperatorControlSurface` serves a localhost-first HTML + JSON admin interface.
+- `OperatorController` aggregates runtime snapshot data from execution, websocket, circuit breaker, and DB-backed positions/trades.
+- Mutating operator actions are token-protected and currently limited to pause/resume trading, cancel-all, and reconciliation controls.
+- The operator surface is intended for supervised live sessions; it is not yet a full authenticated multi-user admin system.
+
+### 12. Phase 3 engine split
 - `ExecutionEngine` remains the public interface used by strategies and `main.py`.
 - `OrderExecutor` owns submission-time safety checks and client-facing order execution.
 - `FillReconciler` owns pending-order reconciliation, fill extraction/parsing, MTM refresh, and total-PnL observation.
@@ -93,4 +101,4 @@ PolyBot is organized into four main layers:
 - Backtest/simulation tooling is still pending.
 - A mock CLOB server and broader integration-test harness are not yet implemented.
 - JSON log output, backup/export utilities, and disaster-recovery runbooks are still missing from the production-readiness layer.
-- Legacy-ledger repair still has one test-isolation leak in `tests/test_legacy_ledger_repair.py`, so the accounting regression set is not fully clean yet.
+- A supervised live-canary runbook and explicit operator stop-condition procedure are still missing.

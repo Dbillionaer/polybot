@@ -1,6 +1,6 @@
 """Automated Market Making strategy implementation."""
 
-from typing import List, Union
+from typing import cast
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from loguru import logger
@@ -21,7 +21,7 @@ class AMMStrategy(BaseStrategy):
         self,
         engine: ExecutionEngine,
         ws: PolyWebSocket,
-        token_ids: Union[str, List[str]],
+        token_ids: str | list[str],
         spread: float = 0.02,
         size: int = 100,
         max_inventory: float = 1000.0,
@@ -36,9 +36,9 @@ class AMMStrategy(BaseStrategy):
         self.max_inventory = max_inventory
 
         # Per-market state keyed by token_id
-        self.last_mid_price: dict = {t: 0.0 for t in self.token_ids}
-        self.inventory: dict = {t: 0.0 for t in self.token_ids}
-        self.volatility_multiplier: dict = {t: 1.0 for t in self.token_ids}
+        self.last_mid_price: dict = dict.fromkeys(self.token_ids, 0.0)
+        self.inventory: dict = dict.fromkeys(self.token_ids, 0.0)
+        self.volatility_multiplier: dict = dict.fromkeys(self.token_ids, 1.0)
         self.quote_reprice_threshold = 0.005
         self.active_quotes: dict = {
             t: {
@@ -83,16 +83,17 @@ class AMMStrategy(BaseStrategy):
                     "asks": book.get("asks", []),
                 })
 
-    def _quote_slot(self, market_id: str, side: str) -> dict:
-        return self.active_quotes.setdefault(market_id, {}).setdefault(
+    def _quote_slot(self, market_id: str, side: str) -> dict[str, float | str | None]:
+        slot = self.active_quotes.setdefault(market_id, {}).setdefault(
             side,
             {"order_id": None, "price": None},
         )
+        return cast(dict[str, float | str | None], slot)
 
     def _clear_stale_quote(self, market_id: str, side: str) -> None:
         quote = self._quote_slot(market_id, side)
         order_id = quote.get("order_id")
-        if order_id and not self.engine.is_order_pending(order_id):
+        if isinstance(order_id, str) and not self.engine.is_order_pending(order_id):
             quote["order_id"] = None
             quote["price"] = None
 
@@ -102,7 +103,7 @@ class AMMStrategy(BaseStrategy):
 
         existing_order_id = quote.get("order_id")
         existing_price = quote.get("price")
-        if existing_order_id and existing_price is not None:
+        if isinstance(existing_order_id, str) and existing_price is not None:
             if abs(float(existing_price) - target_price) < self.quote_reprice_threshold:
                 return
             if not self.engine.cancel_order(existing_order_id, reason=f"{self.name} requote {side}"):

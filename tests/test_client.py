@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from core.client import PolyClient
-from core.negrisk import NEG_RISK_ADAPTER_ADDRESS, CTF_CONTRACT_ADDRESS
+from core.negrisk import CTF_CONTRACT_ADDRESS, NEG_RISK_ADAPTER_ADDRESS
 
 
 class TestPolyClient(unittest.TestCase):

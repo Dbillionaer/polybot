@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import os
 from collections import defaultdict
+from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-from typing import Any, Iterable, List, Mapping, Optional
+from typing import Any
 
 from dotenv import load_dotenv
 from loguru import logger
@@ -15,11 +16,11 @@ from sqlmodel import Field, Session, SQLModel, create_engine, select
 load_dotenv()
 
 
-class Position(SQLModel, table=True):
+class Position(SQLModel, table=True):  # type: ignore[call-arg, misc]
     """Represents an open or closed position."""
 
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     condition_id: str = Field(index=True)
     token_id: str = Field(index=True)
     outcome: str  # "YES" or "NO"
@@ -30,11 +31,11 @@ class Position(SQLModel, table=True):
     status: str = "OPEN"  # "OPEN", "CLOSED"
 
 
-class Trade(SQLModel, table=True):
+class Trade(SQLModel, table=True):  # type: ignore[call-arg, misc]
     """Records executed trades."""
 
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     order_id: str = Field(index=True)
     token_id: str
     side: str  # "BUY", "SELL"
@@ -44,7 +45,7 @@ class Trade(SQLModel, table=True):
     strategy: str
 
 
-class BotState(SQLModel, table=True):
+class BotState(SQLModel, table=True):  # type: ignore[call-arg, misc]
     """Stores key-value state for the bot."""
 
 
@@ -118,23 +119,23 @@ def record_trade(
         session.commit()
 
 
-def get_open_positions() -> List[Position]:
+def get_open_positions() -> list[Position]:
     """Retrieves all open positions."""
 
 
     with get_session() as session:
         statement = select(Position).where(Position.status == "OPEN")
-        return session.exec(statement).all()
+        return list(session.exec(statement).all())
 
 
-def get_all_positions() -> List[Position]:
+def get_all_positions() -> list[Position]:
     """Retrieve all position rows, open and closed."""
     with get_session() as session:
         statement = select(Position).order_by(Position.id)
         return list(session.exec(statement).all())
 
 
-def get_all_trades() -> List[Trade]:
+def get_all_trades() -> list[Trade]:
     """Retrieve all trade rows in deterministic chronological order."""
     with get_session() as session:
         statement = select(Trade).order_by(Trade.timestamp, Trade.id)
@@ -142,7 +143,9 @@ def get_all_trades() -> List[Trade]:
 
 
 def _normalize_market_metadata(
-    market_metadata: Iterable[dict[str, Any]] | Mapping[str, dict[str, Any]] | None,
+    market_metadata: (
+        Iterable[dict[str, Any]] | Mapping[str, dict[str, Any]] | Mapping[str, MarketIdentity] | None
+    ),
 ) -> dict[str, MarketIdentity]:
     """Normalize supported market metadata inputs into a token-indexed map."""
     if not market_metadata:
@@ -195,7 +198,9 @@ def _serialize_position(position: Position) -> dict[str, Any]:
 
 
 def audit_legacy_ledger(
-    market_metadata: Iterable[dict[str, Any]] | Mapping[str, dict[str, Any]] | None = None,
+    market_metadata: (
+        Iterable[dict[str, Any]] | Mapping[str, dict[str, Any]] | Mapping[str, MarketIdentity] | None
+    ) = None,
 ) -> dict[str, Any]:
     """Inspect positions/trades for signatures of pre-fix ledger corruption."""
     market_index = _normalize_market_metadata(market_metadata)
@@ -281,7 +286,9 @@ def audit_legacy_ledger(
 
 
 def repair_legacy_positions_from_trades(
-    market_metadata: Iterable[dict[str, Any]] | Mapping[str, dict[str, Any]] | None,
+    market_metadata: (
+        Iterable[dict[str, Any]] | Mapping[str, dict[str, Any]] | Mapping[str, MarketIdentity] | None
+    ),
     *,
     apply: bool = False,
 ) -> dict[str, Any]:

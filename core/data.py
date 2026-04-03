@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import os
-from typing import List
 
 import requests
 from loguru import logger
 
-from core.retry import gamma_retry, falcon_retry
+from core.retry import falcon_retry, gamma_retry
 
 GAMMA_API_URL = "https://gamma-api.polymarket.com"
 FALCON_API_URL = (
@@ -60,7 +59,7 @@ class MarketData:
         logger.info(f"Found {len(filtered)} markets w/ vol >= ${min_volume:,.0f}")
         return filtered
 
-    def get_market_tokens(self, clob_token_ids: List[str]):
+    def get_market_tokens(self, clob_token_ids: list[str]):
         """Retrieves detailed token info."""
         return clob_token_ids
 
@@ -131,11 +130,11 @@ class MarketData:
 
         try:
             from web3 import Web3
+
             from core.negrisk import (
-                is_neg_risk_market,
                 ensure_adapter_approval,
+                is_neg_risk_market,
                 redeem_neg_risk_position,
-                NEG_RISK_ADAPTER_ADDRESS,
             )
 
             w3 = Web3(Web3.HTTPProvider(rpc_url))
@@ -235,7 +234,7 @@ class MarketData:
     # Private helpers
     # ──────────────────────────────────────────────────────────────────────
 
-    def _get_market_resolution(self, condition_id: str) -> dict:
+    def _get_market_resolution(self, condition_id: str) -> dict[str, object]:
         """Fetch market resolution status from Gamma API."""
         try:
             resp = self.session.get(
@@ -245,7 +244,7 @@ class MarketData:
             )
             resp.raise_for_status()
             data = resp.json()
-            if isinstance(data, list) and data:
+            if isinstance(data, list) and data and isinstance(data[0], dict):
                 return data[0]
         except Exception as e:
             logger.debug(f"[AutoRedeem] Resolution check failed for {condition_id[:12]}…: {e}")

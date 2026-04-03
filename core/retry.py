@@ -22,22 +22,26 @@ from __future__ import annotations
 import functools
 import os
 import time
-from typing import Callable, Type
-from loguru import logger
+from collections.abc import Callable
+from typing import ParamSpec, TypeVar, cast
 
 import requests
+from loguru import logger
+
+P = ParamSpec("P")
+R = TypeVar("R")
 
 
 def with_retry(
-    max_attempts: int = None,
-    base_delay: float = None,
+    max_attempts: int | None = None,
+    base_delay: float | None = None,
     max_delay: float = 60.0,
     backoff_factor: float = 2.0,
-    retriable_exceptions: tuple[Type[Exception], ...] = (
+    retriable_exceptions: tuple[type[BaseException], ...] = (
         Exception,
     ),
     label: str = "call",
-) -> Callable:
+) -> Callable[[Callable[P, R]], Callable[P, R]]:
     """
     Decorator factory.  Apply to any function that calls an external API.
 
@@ -52,28 +56,23 @@ def with_retry(
     _max_attempts = max_attempts or int(os.getenv("CB_MAX_RETRY_ATTEMPTS", "5"))
     _base_delay = base_delay or float(os.getenv("CB_BASE_RETRY_DELAY", "1.0"))
 
-    def decorator(fn: Callable) -> Callable:
+    def decorator(fn: Callable[P, R]) -> Callable[P, R]:
         @functools.wraps(fn)
-        def wrapper(*args, **kwargs):
-            last_exc: Exception | None = None
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            last_exc: BaseException | None = None
             delay = _base_delay
 
             for attempt in range(1, _max_attempts + 1):
                 try:
-                    result = fn(*args, **kwargs)
-                    return result
+                    return fn(*args, **kwargs)
                 except retriable_exceptions as exc:
                     last_exc = exc
-                    is_rate_limit = (
-                        isinstance(exc, requests.exceptions.HTTPError)
-                        and exc.response is not None
-                        and exc.response.status_code == 429
-                    )
+                    response = exc.response if isinstance(exc, requests.exceptions.HTTPError) else None
+                    is_rate_limit = response is not None and response.status_code == 429
 
                     if is_rate_limit:
-                        retry_after = int(
-                            exc.response.headers.get("Retry-After", delay)
-                        )
+                        assert response is not None
+                        retry_after = int(response.headers.get("Retry-After", delay))
                         logger.warning(
                             f"[Retry/{label}] Rate-limited (429). "
                             f"Waiting {retry_after}s before retry {attempt}/{_max_attempts}…"
@@ -92,6 +91,8 @@ def with_retry(
                             f"Last error: {exc}"
                         )
 
+            if last_exc is None:
+                raise RuntimeError(f"[Retry/{label}] Exhausted without capturing an exception")
             raise last_exc  # Re-raise after all attempts exhausted
 
         return wrapper
@@ -101,16 +102,16 @@ def with_retry(
 
 # ── Convenience pre-configured variants ──────────────────────────────────────
 
-def gamma_retry(fn: Callable) -> Callable:
+def gamma_retry(fn: Callable[P, R]) -> Callable[P, R]:
     """Retry decorator tuned for Gamma API calls."""
-    return with_retry(max_attempts=4, base_delay=2.0, label="Gamma")(fn)
+    return cast(Callable[P, R], with_retry(max_attempts=4, base_delay=2.0, label="Gamma")(fn))
 
 
-def clob_retry(fn: Callable) -> Callable:
+def clob_retry(fn: Callable[P, R]) -> Callable[P, R]:
     """Retry decorator tuned for CLOB API calls."""
-    return with_retry(max_attempts=3, base_delay=1.5, label="CLOB")(fn)
+    return cast(Callable[P, R], with_retry(max_attempts=3, base_delay=1.5, label="CLOB")(fn))
 
 
-def falcon_retry(fn: Callable) -> Callable:
+def falcon_retry(fn: Callable[P, R]) -> Callable[P, R]:
     """Retry decorator tuned for Falcon / Heisenberg API calls."""
-    return with_retry(max_attempts=3, base_delay=2.0, label="Falcon")(fn)
+    return cast(Callable[P, R], with_retry(max_attempts=3, base_delay=2.0, label="Falcon")(fn))

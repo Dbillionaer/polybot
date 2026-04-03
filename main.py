@@ -22,10 +22,10 @@ import threading
 import time
 from typing import Any
 
+import requests
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 from loguru import logger
-import requests
 from requests import RequestException
 from web3 import Web3
 
@@ -48,6 +48,8 @@ from strategies.copy_trading import CopyTradingStrategy
 from strategies.logical_arb import LogicalArbStrategy
 from strategies.momentum import MomentumStrategy
 from ui.dashboard import Dashboard
+from ui.operator_controller import OperatorController
+from ui.operator_server import OperatorControlSurface
 
 load_dotenv()
 
@@ -487,6 +489,37 @@ def _start_optional_services(
         schedule_auto_redeem(market_data, poly_client)
 
 
+def _start_operator_surface(
+    execution_engine: ExecutionEngine,
+    ws: PolyWebSocket,
+    circuit_breaker: CircuitBreaker,
+    strategies: list[BaseStrategy],
+    markets: list[MarketConfig],
+) -> OperatorControlSurface | None:
+    """Start the local operator web surface when enabled."""
+    if not _env_enabled("ENABLE_OPERATOR_UI"):
+        return None
+
+    host = os.getenv("OPERATOR_UI_HOST", "127.0.0.1")
+    port = int(os.getenv("OPERATOR_UI_PORT", "8081"))
+    operator_token = os.getenv("OPERATOR_UI_TOKEN", "")
+    controller = OperatorController(
+        execution_engine=execution_engine,
+        ws=ws,
+        circuit_breaker=circuit_breaker,
+        strategies=strategies,
+        markets=markets,
+    )
+    surface = OperatorControlSurface(
+        controller,
+        host=host,
+        port=port,
+        operator_token=operator_token,
+    )
+    surface.start()
+    return surface
+
+
 def _run_strategies(strategies: list[BaseStrategy], markets: list[MarketConfig]) -> None:
     """Start all configured strategies and log the resulting runtime state."""
     if not strategies:
@@ -505,6 +538,7 @@ def _run_dashboard_or_idle_loop(dashboard_context: DashboardContext) -> None:
     """Run the dashboard UI or keep the main thread alive until shutdown."""
     execution_engine = dashboard_context["execution_engine"]
     ws = dashboard_context["ws"]
+    operator_surface = dashboard_context.get("operator_surface")
     try:
         if _env_enabled("ENABLE_DASHBOARD", "true"):
             logger.remove(0)  # Remove stderr handler to avoid cluttering Rich UI
@@ -517,6 +551,8 @@ def _run_dashboard_or_idle_loop(dashboard_context: DashboardContext) -> None:
         logger.info("[Main] KeyboardInterrupt — stopping bot…")
     finally:
         execution_engine.stop_fill_reconciliation()
+        if operator_surface is not None:
+            operator_surface.stop()
         ws.stop()
         logger.info("[Main] PolyBot stopped cleanly.")
         sys.exit(0)
@@ -538,6 +574,13 @@ def main():
 
     strategies = build_strategies(execution_engine, ws, markets)
     _run_strategies(strategies, markets)
+    operator_surface = _start_operator_surface(
+        execution_engine,
+        ws,
+        circuit_breaker,
+        strategies,
+        markets,
+    )
     dashboard_context: DashboardContext = {
         "poly_client": poly_client,
         "ws": ws,
@@ -545,6 +588,7 @@ def main():
         "execution_engine": execution_engine,
         "strategies": strategies,
         "markets": markets,
+        "operator_surface": operator_surface,
     }
     _run_dashboard_or_idle_loop(dashboard_context)
 

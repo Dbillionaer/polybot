@@ -1,10 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import List, Union
 
 from loguru import logger
 
-from engine.execution import ExecutionEngine
 from core.ws import PolyWebSocket
+from engine.execution import ExecutionEngine
 
 
 class BaseStrategy(ABC):
@@ -15,15 +14,15 @@ class BaseStrategy(ABC):
         engine: ExecutionEngine,
         ws: PolyWebSocket,
         name: str,
-        token_ids: Union[str, List[str]] = None
-    ):
+        token_ids: str | list[str] | None = None,
+    ) -> None:
         self.engine = engine
         self.ws = ws
         self.name = name
 
         # Normalise token_ids to always be a list
         if token_ids is None:
-            self.token_ids: List[str] = []
+            self.token_ids: list[str] = []
         elif isinstance(token_ids, str):
             self.token_ids = [token_ids]
         else:

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import time
 from collections import deque
+from collections.abc import Iterable
 from datetime import date, datetime
-from typing import Any, Iterable
+from typing import Any
 
 from loguru import logger
 from rich.console import Group
@@ -227,8 +228,10 @@ class Dashboard:
         """Fetch recent recorded trades from the database."""
         try:
             with get_session() as session:
-                query = select(Trade).order_by(Trade.timestamp.desc()).limit(limit)
-                return list(session.exec(query).all())
+                query = select(Trade).order_by(Trade.timestamp, Trade.id)
+                trades = list(session.exec(query).all())
+                trades.reverse()
+                return trades[:limit]
         except Exception as exc:
             self._record_error("Failed to load recent trades", exc)
             return []

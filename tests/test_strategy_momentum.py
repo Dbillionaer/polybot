@@ -1,10 +1,10 @@
 # Tests for strategies/momentum.py
 # Tests for Momentum / High-Frequency scalp strategy
 
-import unittest
-from unittest.mock import Mock, MagicMock, patch, call
-from collections import deque
 import time
+import unittest
+from collections import deque
+from unittest.mock import MagicMock, Mock, call, patch
 
 from strategies.momentum import MomentumStrategy
 
@@ -18,12 +18,12 @@ class TestMomentumStrategy(unittest.TestCase):
         self.mock_engine.risk_manager = Mock()
         self.mock_engine.dry_run = True
         self.mock_engine.execute_limit_order = Mock()
-        
+
         self.mock_ws = Mock()
         self.mock_ws.subscribe = Mock()
-        
+
         self.token_ids = ["0xtoken1", "0xtoken2"]
-        
+
         self.strategy = MomentumStrategy(
             engine=self.mock_engine,
             ws=self.mock_ws,
@@ -46,9 +46,9 @@ class TestMomentumStrategy(unittest.TestCase):
     def test_on_market_update_non_book_event(self):
         """Test that non-book events are ignored."""
         data = {"event_type": "trade", "market": "0xtoken1"}
-        
+
         self.strategy.on_market_update(data)
-        
+
         self.mock_engine.execute_limit_order.assert_not_called()
 
     def test_on_market_update_wrong_market(self):
@@ -59,9 +59,9 @@ class TestMomentumStrategy(unittest.TestCase):
             "bids": [[0.45, 100]],
             "asks": [[0.55, 100]],
         }
-        
+
         self.strategy.on_market_update(data)
-        
+
         self.mock_engine.execute_limit_order.assert_not_called()
 
     def test_on_market_update_empty_book(self):
@@ -72,9 +72,9 @@ class TestMomentumStrategy(unittest.TestCase):
             "bids": [],
             "asks": [],
         }
-        
+
         self.strategy.on_market_update(data)
-        
+
         self.mock_engine.execute_limit_order.assert_not_called()
 
     def test_on_market_update_buy_imbalance(self):
@@ -86,11 +86,11 @@ class TestMomentumStrategy(unittest.TestCase):
             "bids": [[0.45, 500], [0.44, 400], [0.43, 300]],  # Total: 1200
             "asks": [[0.55, 50], [0.56, 40], [0.57, 30]],   # Total: 120
         }
-        
+
         self.mock_engine.risk_manager.check_trade_allowed.return_value = True
-        
+
         self.strategy.on_market_update(data)
-        
+
         # Should execute buy order
         self.mock_engine.execute_limit_order.assert_called_once()
         call_args = self.mock_engine.execute_limit_order.call_args
@@ -107,11 +107,11 @@ class TestMomentumStrategy(unittest.TestCase):
             "bids": [[0.45, 50], [0.44, 40], [0.43, 30]],   # Total: 120
             "asks": [[0.55, 500], [0.56, 400], [0.57, 300]],  # Total: 1200
         }
-        
+
         self.mock_engine.risk_manager.check_trade_allowed.return_value = True
-        
+
         self.strategy.on_market_update(data)
-        
+
         # Should execute sell order
         self.mock_engine.execute_limit_order.assert_called_once()
         call_args = self.mock_engine.execute_limit_order.call_args
@@ -127,9 +127,9 @@ class TestMomentumStrategy(unittest.TestCase):
             "bids": [[0.45, 100], [0.44, 100]],
             "asks": [[0.55, 100], [0.56, 100]],
         }
-        
+
         self.strategy.on_market_update(data)
-        
+
         self.mock_engine.execute_limit_order.assert_not_called()
 
     def test_on_market_update_risk_check_fails(self):
@@ -140,19 +140,19 @@ class TestMomentumStrategy(unittest.TestCase):
             "bids": [[0.45, 500], [0.44, 400]],
             "asks": [[0.55, 50]],
         }
-        
+
         self.mock_engine.risk_manager.check_trade_allowed.return_value = False
-        
+
         self.strategy.on_market_update(data)
-        
+
         self.mock_engine.execute_limit_order.assert_not_called()
 
     def test_on_trade_update_non_trade_event(self):
         """Test that non-trade events are ignored in trade handler."""
         data = {"event_type": "book", "market": "0xtoken1"}
-        
+
         self.strategy.on_trade_update(data)
-        
+
         # Should not add to volume history
         self.assertEqual(len(self.strategy.volume_history["0xtoken1"]), 0)
 
@@ -163,9 +163,9 @@ class TestMomentumStrategy(unittest.TestCase):
             "market": "0xunknowntoken",
             "size": 100,
         }
-        
+
         self.strategy.on_trade_update(data)
-        
+
         # Should not add to volume history
         self.assertNotIn("0xunknowntoken", self.strategy.volume_history)
 
@@ -176,25 +176,25 @@ class TestMomentumStrategy(unittest.TestCase):
             "market": "0xtoken1",
             "size": 100,
         }
-        
+
         self.strategy.on_trade_update(data)
-        
+
         # Should add to volume history
         self.assertEqual(len(self.strategy.volume_history["0xtoken1"]), 1)
 
     def test_on_trade_update_volume_surge_detection(self):
         """Test volume surge detection."""
         # Add 9 historical trades with small sizes
-        for i in range(9):
+        for _ in range(9):
             self.strategy.volume_history["0xtoken1"].append((time.time(), 10))
-        
+
         # Add surge trade (10x average)
         data = {
             "event_type": "trade",
             "market": "0xtoken1",
             "size": 100,  # 10x the average of 10
         }
-        
+
         with patch('strategies.momentum.logger') as mock_logger:
             self.strategy.on_trade_update(data)
             # Logger should have logged the surge
@@ -203,16 +203,16 @@ class TestMomentumStrategy(unittest.TestCase):
     def test_on_trade_update_no_surge(self):
         """Test that normal volume doesn't trigger surge detection."""
         # Add 9 historical trades
-        for i in range(9):
+        for _ in range(9):
             self.strategy.volume_history["0xtoken1"].append((time.time(), 10))
-        
+
         # Add normal trade
         data = {
             "event_type": "trade",
             "market": "0xtoken1",
             "size": 15,  # Not a surge
         }
-        
+
         with patch('strategies.momentum.logger') as mock_logger:
             self.strategy.on_trade_update(data)
             # Logger should not have logged surge
@@ -221,7 +221,7 @@ class TestMomentumStrategy(unittest.TestCase):
     def test_run_subscribes_all(self):
         """Test that run() subscribes to all markets."""
         self.strategy.run()
-        
+
         # subscribe_all() subscribes each token to both book and trades channels
         self.assertEqual(self.mock_ws.subscribe.call_count, len(self.token_ids) * 2)
         self.mock_ws.subscribe.assert_has_calls(
@@ -242,7 +242,7 @@ class TestMomentumStrategy(unittest.TestCase):
             token_ids=["0xtoken1"],
             imbalance_ratio=10.0,  # Higher threshold
         )
-        
+
         # Create moderate imbalance that wouldn't trigger with ratio=10
         data = {
             "event_type": "book",
@@ -250,11 +250,11 @@ class TestMomentumStrategy(unittest.TestCase):
             "bids": [[0.45, 500], [0.44, 400]],  # 900
             "asks": [[0.55, 100]],  # 100, ratio = 9
         }
-        
+
         self.mock_engine.risk_manager.check_trade_allowed.return_value = True
-        
+
         strategy.on_market_update(data)
-        
+
         # Should NOT trigger with ratio=10
         self.mock_engine.execute_limit_order.assert_not_called()
 
@@ -266,27 +266,27 @@ class TestMomentumStrategy(unittest.TestCase):
             token_ids=["0xtoken1"],
             scalp_size=100,  # Double the default
         )
-        
+
         data = {
             "event_type": "book",
             "market": "0xtoken1",
             "bids": [[0.45, 500], [0.44, 400]],
             "asks": [[0.55, 50]],
         }
-        
+
         self.mock_engine.risk_manager.check_trade_allowed.return_value = True
-        
+
         strategy.on_market_update(data)
-        
+
         call_args = self.mock_engine.execute_limit_order.call_args
         self.assertEqual(call_args[0][2], 100)  # Custom scalp size
 
     def test_volume_history_maxlen(self):
         """Test that volume history is bounded."""
         # Add more than maxlen items
-        for i in range(100):
+        for _ in range(100):
             self.strategy.volume_history["0xtoken1"].append((time.time(), 10))
-        
+
         # Should be capped at maxlen (60)
         self.assertLessEqual(len(self.strategy.volume_history["0xtoken1"]), 60)
 

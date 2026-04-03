@@ -7,8 +7,8 @@ from loguru import logger
 from py_clob_client.client import ClobClient
 from py_clob_client.clob_types import OrderArgs
 
+from core.negrisk import CTF_CONTRACT_ADDRESS, NEG_RISK_ADAPTER_ADDRESS, is_neg_risk_market
 from core.retry import clob_retry
-from core.negrisk import is_neg_risk_market, NEG_RISK_ADAPTER_ADDRESS, CTF_CONTRACT_ADDRESS
 
 
 class PolyClient:
@@ -171,7 +171,10 @@ class PolyClient:
     def get_order(self, order_id: str) -> dict[str, Any]:
         """Fetch a single authenticated order snapshot from the CLOB."""
         try:
-            return self.clob.get_order(order_id)
+            response = self.clob.get_order(order_id)
+            if isinstance(response, dict):
+                return response
+            raise TypeError(f"Unexpected get_order response type: {type(response).__name__}")
         except Exception as e:
             logger.error(f"Error fetching order {order_id}: {e}")
             raise

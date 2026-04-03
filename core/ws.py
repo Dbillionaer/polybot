@@ -3,11 +3,13 @@
 import asyncio
 import json
 import threading
+from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List
+from typing import Any
 
 import websockets
 from loguru import logger
+from websockets.asyncio.client import ClientConnection
 
 
 class PolyWebSocket:
@@ -17,22 +19,22 @@ class PolyWebSocket:
 
         self,
         uri: str = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
-    ):
+    ) -> None:
         self.uri = uri
-        self.subscriptions: List[Dict] = []
-        self.callbacks: Dict[str, List[Callable]] = {}
+        self.subscriptions: list[dict[str, str]] = []
+        self.callbacks: dict[str, list[Callable[[dict[str, Any]], None]]] = {}
         self._subscription_keys: set[tuple[str, str]] = set()
-        self._callback_keys: Dict[str, set[tuple[int, ...]]] = {}
+        self._callback_keys: dict[str, set[tuple[int, ...]]] = {}
         self.is_running = False
         self.is_connected = False
         self.last_message_at: datetime | None = None
         self.last_error: str | None = None
-        self._loop = None
-        self._thread = None
-        self._websocket = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._thread: threading.Thread | None = None
+        self._websocket: ClientConnection | None = None
 
     @staticmethod
-    def _callback_identity(callback: Callable) -> tuple[int, ...]:
+    def _callback_identity(callback: Callable[[dict[str, Any]], None]) -> tuple[int, ...]:
         """Create a stable identity for functions and bound methods."""
         bound_self = getattr(callback, "__self__", None)
         bound_func = getattr(callback, "__func__", None)
@@ -40,7 +42,7 @@ class PolyWebSocket:
             return (id(bound_self), id(bound_func))
         return (id(callback),)
 
-    def add_callback(self, channel: str, callback: Callable) -> bool:
+    def add_callback(self, channel: str, callback: Callable[[dict[str, Any]], None]) -> bool:
         """Adds a callback function for a specific channel."""
         if channel not in self.callbacks:
 
@@ -91,13 +93,13 @@ class PolyWebSocket:
             "last_error": self.last_error,
         }
 
-    async def _send_subscription(self, sub: Dict[str, Any]):
+    async def _send_subscription(self, sub: dict[str, Any]) -> None:
         """Send a subscription immediately when a websocket is active."""
         if self._websocket is None:
             return
         await self._websocket.send(json.dumps(sub))
 
-    async def _run(self):
+    async def _run(self) -> None:
         while self.is_running:
             try:
                 async with websockets.connect(self.uri) as websocket:
@@ -145,25 +147,24 @@ class PolyWebSocket:
                 self.is_connected = False
                 self._websocket = None
 
-    def start(self):
+    def start(self) -> None:
         """Starts the WebSocket connection in a separate thread."""
         self.is_running = True
 
         self._thread = threading.Thread(
             target=self._start_event_loop, daemon=True
         )
-
         self._thread.start()
 
-    def _start_event_loop(self):
+    def _start_event_loop(self) -> None:
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
         self._loop.run_until_complete(self._run())
 
-    def stop(self):
+    def stop(self) -> None:
         """Stops the WebSocket connection."""
         self.is_running = False
         self.is_connected = False
-        if self._loop:
-
-            self._loop.stop()
+        loop = self._loop
+        if loop is not None:
+            loop.stop()
