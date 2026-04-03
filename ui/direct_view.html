@@ -1,15 +1,9 @@
-"""Static HTML for the PolyBot operator control surface."""
-
-from __future__ import annotations
-
-import html
-
-_HTML_TEMPLATE = """<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>__TITLE__</title>
+  <title>PolyBot Operator Console Preview</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -48,12 +42,12 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
     <header class="rounded-3xl border border-tvline bg-gradient-to-br from-slate-950 via-tvpanel to-slate-950 p-5 shadow-panel">
       <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div class="space-y-2">
-          <div id="dryRunBanner" class="hidden rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-emerald-300">
+          <div id="dryRunBanner" class="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-emerald-300 inline-flex">
             Dry Run Mode - Safe
           </div>
           <p class="text-xs uppercase tracking-[0.35em] text-tvmuted">PolyBot Operator Console</p>
-          <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">__TITLE__</h1>
-          <p class="text-sm text-tvmuted">Professional browser dashboard for supervised live operations and fast intervention.</p>
+          <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">PolyBot Operator Console Preview</h1>
+          <p class="text-sm text-tvmuted">Standalone static preview of the browser dashboard styling and layout.</p>
         </div>
         <div class="grid gap-2 text-sm text-tvmuted sm:grid-cols-3 sm:gap-4">
           <div class="rounded-2xl border border-tvline bg-slate-950/50 px-4 py-3">
@@ -66,7 +60,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
           </div>
           <div class="rounded-2xl border border-tvline bg-slate-950/50 px-4 py-3">
             <div class="text-[11px] uppercase tracking-[0.22em]">Operator Token</div>
-            <input id="token" type="password" placeholder="Required for actions" class="mt-2 w-full rounded-xl border border-tvline bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none ring-0 placeholder:text-slate-500 focus:border-tvaccent" />
+            <input id="token" type="password" placeholder="Preview only" class="mt-2 w-full rounded-xl border border-tvline bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none ring-0 placeholder:text-slate-500 focus:border-tvaccent" />
           </div>
         </div>
       </div>
@@ -133,23 +127,23 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
         <article class="rounded-3xl border border-tvline bg-tvpanel p-5 shadow-panel">
           <div class="mb-4">
             <h2 class="text-lg font-semibold">Operator Actions</h2>
-            <p class="text-sm text-tvmuted">Token-protected controls for supervised intervention.</p>
+            <p class="text-sm text-tvmuted">Preview of the action button layout.</p>
           </div>
           <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-            <button onclick="runAction('/api/actions/trading/pause', { reason: 'manual operator pause' })" class="rounded-2xl bg-tvwarning px-4 py-3 text-sm font-semibold text-slate-950 transition hover:brightness-110">Pause Trading</button>
-            <button onclick="runAction('/api/actions/trading/resume')" class="rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:brightness-110">Resume Trading</button>
-            <button onclick="runAction('/api/actions/cancel-all')" class="rounded-2xl bg-tvdanger px-4 py-3 text-sm font-semibold text-white transition hover:brightness-110">Cancel All Orders</button>
-            <button onclick="runAction('/api/actions/reconciliation/start')" class="rounded-2xl bg-tvaccent px-4 py-3 text-sm font-semibold text-white transition hover:brightness-110">Start Reconciliation</button>
-            <button onclick="runAction('/api/actions/reconciliation/stop')" class="rounded-2xl bg-slate-700 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:bg-slate-600">Stop Reconciliation</button>
-            <button onclick="runAction('/api/actions/manual-redeem')" class="rounded-2xl bg-fuchsia-500 px-4 py-3 text-sm font-semibold text-white transition hover:brightness-110">Manual Redeem</button>
+            <button class="rounded-2xl bg-tvwarning px-4 py-3 text-sm font-semibold text-slate-950 transition hover:brightness-110">Pause Trading</button>
+            <button class="rounded-2xl bg-emerald-400 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:brightness-110">Resume Trading</button>
+            <button class="rounded-2xl bg-tvdanger px-4 py-3 text-sm font-semibold text-white transition hover:brightness-110">Cancel All Orders</button>
+            <button class="rounded-2xl bg-tvaccent px-4 py-3 text-sm font-semibold text-white transition hover:brightness-110">Start Reconciliation</button>
+            <button class="rounded-2xl bg-slate-700 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:bg-slate-600">Stop Reconciliation</button>
+            <button class="rounded-2xl bg-fuchsia-500 px-4 py-3 text-sm font-semibold text-white transition hover:brightness-110">Manual Redeem</button>
           </div>
-          <div id="actionResult" class="mt-4 rounded-2xl border border-tvline bg-slate-950/70 px-4 py-3 text-sm text-tvmuted">No action yet.</div>
+          <div id="actionResult" class="mt-4 rounded-2xl border border-tvline bg-slate-950/70 px-4 py-3 text-sm text-tvmuted">Preview mode only.</div>
         </article>
 
         <article class="rounded-3xl border border-tvline bg-tvpanel p-5 shadow-panel">
           <div class="mb-4">
             <h2 class="text-lg font-semibold">System Health</h2>
-            <p class="text-sm text-tvmuted">Critical runtime conditions and operator-facing safety state.</p>
+            <p class="text-sm text-tvmuted">Critical runtime conditions and safety state.</p>
           </div>
           <div class="grid gap-3">
             <div class="rounded-2xl border border-tvline bg-slate-950/60 p-4">
@@ -180,8 +174,45 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
   </div>
 
   <script>
+    const previewPayload = {
+      generated_at: new Date().toISOString(),
+      mode: 'DRY_RUN',
+      market_count: 7,
+      portfolio: {
+        total_pnl: 18.42,
+        daily_pnl: 3.11,
+        current_bankroll: 418.42,
+        usdc_balance: 392.87
+      },
+      strategies: [
+        { name: 'AMM', state: 'running', state_label: 'Running', token_count: 2, last_error: null },
+        { name: 'AI_Arb', state: 'paused', state_label: 'Paused', token_count: 1, last_error: null },
+        { name: 'Momentum', state: 'running', state_label: 'Running', token_count: 2, last_error: null },
+        { name: 'Logical_Arb', state: 'error', state_label: 'Error', token_count: 1, last_error: 'Falcon quote drift exceeded threshold.' },
+        { name: 'Copy_Trading', state: 'paused', state_label: 'Paused', token_count: 1, last_error: null }
+      ],
+      health: {
+        websocket_connected: true,
+        last_websocket_message_at: new Date().toISOString(),
+        reconciliation_running: true,
+        circuit_breaker: { tripped: false, reason: '' }
+      },
+      execution: {
+        operator_pause: { paused: false, reason: '' }
+      },
+      positions: [
+        { market_name: 'Will BTC close above $95k Friday?', token_id: '0xbtc-yes', side: 'LONG', size: 45, entry_price: 0.61, mark_price: 0.64, unrealized_pnl: 1.35 },
+        { market_name: 'Will ETH ETF volume beat yesterday?', token_id: '0xeth-no', side: 'LONG', size: 30, entry_price: 0.42, mark_price: 0.38, unrealized_pnl: -1.20 },
+        { market_name: 'Will Fed cut in June?', token_id: '0xfed-yes', side: 'LONG', size: 25, entry_price: 0.33, mark_price: 0.41, unrealized_pnl: 2.00 }
+      ],
+      recent_fills: [
+        { market_name: 'Will BTC close above $95k Friday?', side: 'BUY', size: 20, price: 0.612, strategy: 'Momentum', timestamp: new Date().toISOString() },
+        { market_name: 'Will ETH ETF volume beat yesterday?', side: 'SELL', size: 12, price: 0.402, strategy: 'AMM', timestamp: new Date(Date.now() - 120000).toISOString() },
+        { market_name: 'Will Fed cut in June?', side: 'BUY', size: 15, price: 0.331, strategy: 'Logical_Arb', timestamp: new Date(Date.now() - 240000).toISOString() }
+      ]
+    };
+
     const strategyOrder = ['AMM', 'AI_Arb', 'Momentum', 'Logical_Arb', 'Copy_Trading'];
-    let lastPayload = null;
 
     function formatMoney(value) {
       if (value === null || value === undefined || Number.isNaN(Number(value))) return '--';
@@ -267,7 +298,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
             <div class="font-medium text-slate-100">${position.market_name}</div>
             <div class="text-xs text-tvmuted">${position.token_id}</div>
           </td>
-          <td class="px-4 py-3 text-slate-200">${position.side || position.outcome || '--'}</td>
+          <td class="px-4 py-3 text-slate-200">${position.side || '--'}</td>
           <td class="px-4 py-3 text-slate-200">${Number(position.size || 0).toFixed(2)}</td>
           <td class="px-4 py-3 text-slate-200">${formatPrice(position.entry_price)}</td>
           <td class="px-4 py-3 text-slate-200">${formatPrice(position.mark_price)}</td>
@@ -278,7 +309,7 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 
     function renderHealth(payload) {
       const health = payload.health || {};
-      const breaker = health.circuit_breaker || payload.circuit_breaker || {};
+      const breaker = health.circuit_breaker || {};
       const operatorPause = payload.execution?.operator_pause || {};
       document.getElementById('circuitBreakerStatus').textContent = breaker.tripped ? `OPEN - ${breaker.reason || 'No reason provided'}` : 'Closed / Healthy';
       document.getElementById('circuitBreakerStatus').className = `mt-2 text-base font-semibold ${breaker.tripped ? 'text-tvdanger' : 'text-tvsuccess'}`;
@@ -317,58 +348,11 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
       `).join('');
     }
 
-    async function refreshStatus(showError = false) {
-      try {
-        const response = await fetch('/api/status');
-        const payload = await response.json();
-        lastPayload = payload;
-        renderPortfolio(payload);
-        renderStrategies(payload);
-        renderPositions(payload);
-        renderHealth(payload);
-        renderFills(payload);
-      } catch (error) {
-        if (showError) {
-          const resultNode = document.getElementById('actionResult');
-          resultNode.textContent = `Failed to refresh status: ${error}`;
-          resultNode.className = 'mt-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300';
-        }
-      }
-    }
-
-    async function runAction(path, payload = {}) {
-      const token = document.getElementById('token').value;
-      const resultNode = document.getElementById('actionResult');
-      resultNode.className = 'mt-4 rounded-2xl border border-tvline bg-slate-950/70 px-4 py-3 text-sm text-tvmuted';
-      try {
-        const response = await fetch(path, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-PolyBot-Operator-Token': token,
-          },
-          body: JSON.stringify(payload)
-        });
-        const body = await response.json();
-        resultNode.textContent = body.message || JSON.stringify(body);
-        resultNode.className = response.ok && body.success !== false
-          ? 'mt-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300'
-          : 'mt-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300';
-        await refreshStatus();
-      } catch (error) {
-        resultNode.textContent = `Action failed: ${error}`;
-        resultNode.className = 'mt-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300';
-      }
-    }
-
-    refreshStatus(true);
-    setInterval(() => refreshStatus(false), 3000);
+    renderPortfolio(previewPayload);
+    renderStrategies(previewPayload);
+    renderPositions(previewPayload);
+    renderHealth(previewPayload);
+    renderFills(previewPayload);
   </script>
 </body>
 </html>
-"""
-
-
-def render_operator_page(title: str = "PolyBot Operator Console") -> str:
-    """Return the static operator console HTML."""
-    return _HTML_TEMPLATE.replace("__TITLE__", html.escape(title))

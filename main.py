@@ -490,6 +490,7 @@ def _start_optional_services(
 
 
 def _start_operator_surface(
+    poly_client: PolyClient,
     execution_engine: ExecutionEngine,
     ws: PolyWebSocket,
     circuit_breaker: CircuitBreaker,
@@ -504,6 +505,7 @@ def _start_operator_surface(
     port = int(os.getenv("OPERATOR_UI_PORT", "8081"))
     operator_token = os.getenv("OPERATOR_UI_TOKEN", "")
     controller = OperatorController(
+        poly_client=poly_client,
         execution_engine=execution_engine,
         ws=ws,
         circuit_breaker=circuit_breaker,
@@ -575,6 +577,7 @@ def main():
     strategies = build_strategies(execution_engine, ws, markets)
     _run_strategies(strategies, markets)
     operator_surface = _start_operator_surface(
+        poly_client,
         execution_engine,
         ws,
         circuit_breaker,

@@ -75,6 +75,9 @@ class OperatorControlSurface:
                 body = json.dumps(payload).encode("utf-8")
                 self.send_response(status)
                 self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Headers", "Content-Type, X-PolyBot-Operator-Token")
+                self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
@@ -83,9 +86,17 @@ class OperatorControlSurface:
                 encoded = body.encode("utf-8")
                 self.send_response(HTTPStatus.OK)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Access-Control-Allow-Origin", "*")
                 self.send_header("Content-Length", str(len(encoded)))
                 self.end_headers()
                 self.wfile.write(encoded)
+
+            def do_OPTIONS(self) -> None:
+                self.send_response(HTTPStatus.NO_CONTENT)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Headers", "Content-Type, X-PolyBot-Operator-Token")
+                self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+                self.end_headers()
 
             def _read_json(self) -> dict[str, Any]:
                 content_length = int(self.headers.get("Content-Length", "0") or "0")
@@ -120,7 +131,7 @@ class OperatorControlSurface:
                 return True
 
             def do_GET(self) -> None:
-                if self.path == "/":
+                if self.path in {"/", "/dashboard"}:
                     self._write_html(render_operator_page(title))
                     return
 
@@ -163,6 +174,10 @@ class OperatorControlSurface:
 
                 if self.path == "/api/actions/trading/resume":
                     self._write_json(controller.resume_trading())
+                    return
+
+                if self.path == "/api/actions/manual-redeem":
+                    self._write_json(controller.manual_redeem())
                     return
 
                 self._write_json({"success": False, "message": "Not found."}, status=HTTPStatus.NOT_FOUND)

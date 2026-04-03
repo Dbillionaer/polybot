@@ -354,3 +354,61 @@ print('All orders cancelled.')
 
 > ⚠️ **Final reminder**: Prediction markets are zero-sum. Start small. Respect the daily loss limit.  
 > The circuit breaker and risk manager are your last line of defence — don't disable them.
+
+---
+
+## Browser Operator Dashboard
+
+PolyBot includes an already-implemented browser operator dashboard for supervised local operation.
+
+### Enable It
+
+Set these values in `.env`:
+
+```env
+ENABLE_OPERATOR_UI=true
+OPERATOR_UI_HOST=127.0.0.1
+OPERATOR_UI_PORT=8081
+OPERATOR_UI_TOKEN=choose-a-strong-random-token
+```
+
+Then start the bot normally:
+
+```bash
+python main.py
+```
+
+Open the dashboard at:
+
+```text
+http://127.0.0.1:8081/
+```
+
+`/dashboard` serves the same page. Runtime status is available at `http://127.0.0.1:8081/api/status`.
+
+### What the Dashboard Shows
+
+- Total P&L and current bankroll/equity snapshot
+- USDC balance (when available from the client)
+- Open positions with entry price, mark price, and unrealized P&L
+- Strategy status grid for AMM, AI_Arb, Momentum, Logical_Arb, and Copy_Trading
+- Recent fills from the local trade ledger
+- System health including dry-run banner, circuit breaker, websocket status, and reconciliation status
+
+### Available Actions
+
+The dashboard exposes token-guarded operator actions:
+
+- Pause trading
+- Resume trading
+- Cancel all open orders
+- Start fill reconciliation
+- Stop fill reconciliation
+- Manual redeem button placeholder (currently not wired to redemption execution)
+
+### Important Safety Notes
+
+- The dashboard is localhost-first and should stay private.
+- Mutating actions require `OPERATOR_UI_TOKEN`.
+- `Pause Trading` is the preferred first safety action because it blocks new orders at the execution layer.
+- `Cancel All Orders` should be used after pausing if you want to flatten the live pending-order surface.
