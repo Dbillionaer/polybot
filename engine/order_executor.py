@@ -8,6 +8,8 @@ from typing import Any
 
 from loguru import logger
 
+from core.orderbook import extract_best_bid_ask
+
 
 class OrderExecutor:
     """Handle live order submission, cancellation, and spread checks."""
@@ -72,14 +74,10 @@ class OrderExecutor:
             self.circuit_breaker.record_error("empty order book response")
             return None
 
-        bids = book.get("bids", [])
-        asks = book.get("asks", [])
-        if not bids or not asks:
+        best_bid, best_ask = extract_best_bid_ask(book)
+        if best_bid is None or best_ask is None:
             logger.warning(f"[Execution] Empty bids/asks for {token_id[:12]}…")
             return None
-
-        best_bid = float(bids[0][0])
-        best_ask = float(asks[0][0])
         spread = best_ask - best_bid
 
         max_spread = float(os.getenv("MAX_SPREAD", "0.05"))

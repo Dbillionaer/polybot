@@ -5,6 +5,7 @@ from typing import cast
 from apscheduler.schedulers.background import BackgroundScheduler
 from loguru import logger
 
+from core.orderbook import extract_best_bid_ask, get_levels
 from core.ws import PolyWebSocket
 from engine.execution import ExecutionEngine
 from strategies.base import BaseStrategy
@@ -60,7 +61,7 @@ class AMMStrategy(BaseStrategy):
         """Pull current on-chain balance for a token at startup."""
         try:
             balance = self.engine.client.get_user_balance(token_id)
-            inv = float(balance or 0.0)
+            inv = float(balance) if isinstance(balance, (int, float, str)) else 0.0
             logger.info(f"[AMM] Synced inventory for {token_id[:10]}…: {inv:.2f}")
             return inv
         except Exception as e:
@@ -79,8 +80,8 @@ class AMMStrategy(BaseStrategy):
                 self.on_market_update({
                     "event_type": "book",
                     "market": tid,
-                    "bids": book.get("bids", []),
-                    "asks": book.get("asks", []),
+                    "bids": get_levels(book, "bids"),
+                    "asks": get_levels(book, "asks"),
                 })
 
     def _quote_slot(self, market_id: str, side: str) -> dict[str, float | str | None]:
@@ -141,8 +142,10 @@ class AMMStrategy(BaseStrategy):
         asks = data.get("asks", [])
 
         if bids and asks:
-            best_bid = float(bids[0][0])
-            best_ask = float(asks[0][0])
+            best_bid, best_ask = extract_best_bid_ask({"bids": bids, "asks": asks})
+            if best_bid is None or best_ask is None:
+                logger.debug(f"[AMM] Skipping malformed order book for {market_id[:10]}…")
+                return
             mid_price = (best_bid + best_ask) / 2
             self.last_mid_price[market_id] = mid_price
 

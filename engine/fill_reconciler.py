@@ -71,7 +71,11 @@ class FillReconciler:
         if not callable(snapshot_fn) or not callable(observe_fn):
             return
         try:
-            observe_fn(snapshot_fn()["total_pnl"])
+            snapshot = snapshot_fn()
+            total_pnl = 0.0
+            if isinstance(snapshot, dict):
+                total_pnl = self.as_float(snapshot.get("total_pnl"), 0.0)
+            observe_fn(total_pnl)
         except Exception as exc:
             logger.debug(f"[Execution] Skipping total PnL observation update: {exc}")
 

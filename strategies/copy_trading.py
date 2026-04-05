@@ -64,12 +64,14 @@ class CopyTradingStrategy(BaseStrategy):
                                 seen_trades.add(trade_id)
 
                                 # Process the mirror logic
-                                market_id = trade.get("market_id")
+                                market_id = str(trade.get("market_id") or "")
                                 side = trade.get("side") # Buy/Sell
                                 outcome = trade.get("outcome") # Yes/No
                                 volume = float(trade.get("size", 0))
 
                                 our_size = int(volume * self.size_multiplier)
+                                if not market_id:
+                                    continue
                                 if our_size > 0:
                                     logger.warning(f"MIRROR TRADE DETECTED: {target[:8]} {side} {our_size} shares of {outcome} on market {market_id[:8]}")
                                     # self.engine.execute_limit_order(market_id, outcome, side, our_size, price)

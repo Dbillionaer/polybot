@@ -1,11 +1,12 @@
 """CLOB API client wrapper for Polymarket — NegRisk-aware."""
 
 import os
-from typing import Any
+from collections.abc import Mapping
+from typing import Any, cast
 
 from loguru import logger
 from py_clob_client.client import ClobClient
-from py_clob_client.clob_types import OrderArgs
+from py_clob_client.clob_types import AssetType, BalanceAllowanceParams, OrderArgs
 
 from core.negrisk import CTF_CONTRACT_ADDRESS, NEG_RISK_ADAPTER_ADDRESS, is_neg_risk_market
 from core.retry import clob_retry
@@ -26,9 +27,9 @@ class PolyClient:
         self.address = clob_client.get_address()
 
     @staticmethod
-    def _order_submission_accepted(response: dict[str, Any] | None) -> bool:
+    def _order_submission_accepted(response: object | None) -> bool:
         """Return True when the CLOB response represents a successfully inserted order."""
-        if not isinstance(response, dict):
+        if not isinstance(response, Mapping):
             return False
 
         order_id = response.get("orderID") or response.get("orderId") or response.get("id")
@@ -71,7 +72,33 @@ class PolyClient:
     def get_user_balance(self, asset_id: str):
         """Fetches user balance for a specific asset (USDC or Outcome Token)."""
         try:
-            return self.clob.get_balance(asset_id)
+            get_balance = getattr(self.clob, "get_balance", None)
+            if callable(get_balance):
+                return get_balance(asset_id)
+
+            if asset_id.upper() == "USDC":
+                params = BalanceAllowanceParams(
+                    asset_type=cast(Any, AssetType.COLLATERAL),
+                )
+            else:
+                params = BalanceAllowanceParams(
+                    asset_type=cast(Any, AssetType.CONDITIONAL),
+                    token_id=asset_id,
+                )
+            response = self.clob.get_balance_allowance(params)
+            if isinstance(response, Mapping):
+                balance = response.get("balance")
+                if isinstance(balance, Mapping):
+                    for key in ("value", "amount", "available"):
+                        value = balance.get(key)
+                        if value is not None:
+                            return value
+                for key in ("balance", "available_balance", "available", "value"):
+                    value = response.get(key)
+                    if value is not None and not isinstance(value, Mapping):
+                        return value
+            logger.warning(f"Unrecognized balance payload for {asset_id}: {response}")
+            return 0.0
         except Exception as e:
             logger.error(f"Error fetching balance for {asset_id}: {e}")
             raise  # Let the retry decorator handle it
@@ -109,7 +136,7 @@ class PolyClient:
 
             # Build OrderArgs — pass neg_risk if the kwarg is supported
             try:
-                order_args = OrderArgs(
+                order_args = cast(Any, OrderArgs)(
                     token_id=token_id,
                     price=price,
                     size=size,
@@ -130,6 +157,12 @@ class PolyClient:
                 )
 
             response = self.clob.create_and_post_order(order_args)
+
+            if not isinstance(response, dict):
+                logger.error(
+                    f"Order failed: unexpected response payload {type(response).__name__}: {response}"
+                )
+                raise RuntimeError(f"CLOB rejected order: {response}")
 
             if self._order_submission_accepted(response):
                 order_id = response.get("orderID") or response.get("orderId") or response.get("id")

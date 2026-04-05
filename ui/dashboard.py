@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from collections import deque
 from collections.abc import Iterable
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any
 
 from loguru import logger
@@ -117,8 +117,9 @@ class Dashboard:
                     return float(level["price"])
                 if "px" in level:
                     return float(level["px"])
-            if hasattr(level, "price"):
-                return float(level.price)
+            price_attr = getattr(level, "price", None)
+            if price_attr is not None:
+                return float(price_attr)
         except (TypeError, ValueError):
             return None
         return None
@@ -228,8 +229,14 @@ class Dashboard:
         """Fetch recent recorded trades from the database."""
         try:
             with get_session() as session:
-                query = select(Trade).order_by(Trade.timestamp, Trade.id)
+                query = select(Trade)
                 trades = list(session.exec(query).all())
+                trades.sort(
+                    key=lambda trade: (
+                        trade.timestamp or datetime.min.replace(tzinfo=timezone.utc),
+                        trade.id or 0,
+                    )
+                )
                 trades.reverse()
                 return trades[:limit]
         except Exception as exc:
@@ -262,9 +269,10 @@ class Dashboard:
         """Transform trade records into dashboard rows with current market context."""
         rows: list[dict[str, Any]] = []
         for trade in trades:
+            trade_time = trade.timestamp.strftime("%H:%M:%S") if trade.timestamp else "--:--:--"
             rows.append(
                 {
-                    "time": trade.timestamp.strftime("%H:%M:%S"),
+                    "time": trade_time,
                     "market": self._get_market_name(trade.token_id),
                     "side": trade.side,
                     "size": float(trade.size),
@@ -283,7 +291,7 @@ class Dashboard:
         open_pnl_today = sum(
             row["open_pnl"] or 0.0
             for row in position_rows
-            if row["entry_time"].date() == today
+            if isinstance(row.get("entry_time"), datetime) and row["entry_time"].date() == today
         )
         trades_today = [trade for trade in trades if trade.timestamp.date() == today]
         trade_notional_today = sum(float(trade.price) * float(trade.size) for trade in trades_today)
@@ -335,14 +343,14 @@ class Dashboard:
     def update_header(self, layout: Layout, snapshot: dict[str, Any]) -> None:
         """Render the top summary bar."""
         uptime = str(datetime.now() - self.start_time).split(".")[0]
-        summary = snapshot["summary"]
+        summary = snapshot.get("summary", {})
         body = (
             f"[bold blue]{self.bot_name}[/bold blue] | "
             f"Uptime: {uptime} | "
-            f"Open PnL Today: {self._format_pnl(summary['open_pnl_today'])} | "
-            f"Open PnL Total: {self._format_pnl(summary['open_pnl_total'])} | "
-            f"Trades Today: [cyan]{summary['trade_count_today']}[/cyan] "
-            f"({self._format_currency(summary['trade_notional_today'])})"
+            f"Open PnL Today: {self._format_pnl(summary.get('open_pnl_today'))} | "
+            f"Open PnL Total: {self._format_pnl(summary.get('open_pnl_total'))} | "
+            f"Trades Today: [cyan]{summary.get('trade_count_today', 0)}[/cyan] "
+            f"({self._format_currency(summary.get('trade_notional_today'))})"
         )
         layout["header"].update(Panel(body, style="white on black"))
 
@@ -427,9 +435,10 @@ class Dashboard:
         if self.circuit_breaker is None:
             status_table.add_row("Circuit", "N/A", "No circuit breaker attached")
         else:
-            circuit = self.circuit_breaker.status_summary()
-            circuit_status = "OPEN" if circuit["tripped"] else "CLOSED"
-            circuit_details = circuit["reason"] or "Healthy"
+            raw_circuit = self.circuit_breaker.status_summary()
+            circuit = raw_circuit if isinstance(raw_circuit, dict) else {}
+            circuit_status = "OPEN" if bool(circuit.get("tripped")) else "CLOSED"
+            circuit_details = str(circuit.get("reason") or "Healthy")
             status_table.add_row("Circuit", circuit_status, circuit_details)
 
         status_table.add_row(

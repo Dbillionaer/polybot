@@ -183,8 +183,9 @@ def ensure_adapter_approval(w3, wallet_address: str, private_key: str) -> bool:
         signed = w3.eth.account.sign_transaction(tx, private_key=private_key)
         tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
         receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+        status = receipt.get("status") if isinstance(receipt, dict) else getattr(receipt, "status", None)
 
-        if receipt["status"] == 1:
+        if status == 1:
             logger.success(
                 f"[NegRisk] ✅ Adapter approval granted — tx: {tx_hash.hex()}"
             )
@@ -236,6 +237,7 @@ def redeem_neg_risk_position(
         signed = w3.eth.account.sign_transaction(tx, private_key=private_key)
         tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
         receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+        status = receipt.get("status") if isinstance(receipt, dict) else getattr(receipt, "status", None)
 
         usdc_received_raw = receipt.get("logs", [{}])[0].get("data", "0x0")
         try:
@@ -243,7 +245,7 @@ def redeem_neg_risk_position(
         except Exception:
             usdc_received = 0.0
 
-        if receipt["status"] == 1:
+        if status == 1:
             logger.success(
                 f"[NegRisk] ✅ Redeemed via adapter — "
                 f"USDC received: ${usdc_received:.4f} | tx: {tx_hash.hex()}"

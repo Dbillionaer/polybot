@@ -131,15 +131,22 @@ def get_open_positions() -> list[Position]:
 def get_all_positions() -> list[Position]:
     """Retrieve all position rows, open and closed."""
     with get_session() as session:
-        statement = select(Position).order_by(Position.id)
+        statement = select(Position)
         return list(session.exec(statement).all())
 
 
 def get_all_trades() -> list[Trade]:
     """Retrieve all trade rows in deterministic chronological order."""
     with get_session() as session:
-        statement = select(Trade).order_by(Trade.timestamp, Trade.id)
-        return list(session.exec(statement).all())
+        statement = select(Trade)
+        trades = list(session.exec(statement).all())
+        return sorted(
+            trades,
+            key=lambda trade: (
+                trade.timestamp or datetime.min.replace(tzinfo=timezone.utc),
+                trade.id or 0,
+            ),
+        )
 
 
 def _normalize_market_metadata(
@@ -419,6 +426,8 @@ def update_position(
 
     resolved_condition_id = condition_id or token_id
     resolved_outcome = outcome or "UNKNOWN"
+    realized_pnl = 0.0
+    pos: Position | None = None
 
     with get_session() as session:
         statement = select(Position).where(
@@ -472,7 +481,10 @@ def update_position(
                 existing_pos.status = "OPEN"
 
         session.commit()
-        persisted = existing_pos if existing_pos else pos
+        persisted = existing_pos if existing_pos is not None else pos
+        if persisted is None:
+            logger.error(f"[Positions] Failed to persist position update for {token_id[:12]}…")
+            return PositionUpdateResult(applied=False)
         return PositionUpdateResult(
             applied=True,
             realized_pnl=realized_pnl if normalized_side == "SELL" else 0.0,

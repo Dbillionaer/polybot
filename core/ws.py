@@ -73,11 +73,12 @@ class PolyWebSocket:
         }
         self._subscription_keys.add(subscription_key)
         self.subscriptions.append(sub)
-        if self._loop and self._websocket and self.is_connected:
+        if self._loop and self._loop.is_running() and self._websocket and self.is_connected:
             try:
-                asyncio.run_coroutine_threadsafe(
+                future = asyncio.run_coroutine_threadsafe(
                     self._send_subscription(sub), self._loop
                 )
+                future.add_done_callback(self._log_subscription_result)
             except RuntimeError as exc:
                 logger.debug(f"WebSocket subscription enqueue skipped: {exc}")
         return True
@@ -98,6 +99,14 @@ class PolyWebSocket:
         if self._websocket is None:
             return
         await self._websocket.send(json.dumps(sub))
+
+    @staticmethod
+    def _log_subscription_result(future: Any) -> None:
+        """Log asynchronous subscription delivery failures without crashing callers."""
+        try:
+            future.result()
+        except Exception as exc:
+            logger.debug(f"WebSocket subscription send failed: {exc}")
 
     async def _run(self) -> None:
         while self.is_running:
@@ -166,5 +175,5 @@ class PolyWebSocket:
         self.is_running = False
         self.is_connected = False
         loop = self._loop
-        if loop is not None:
-            loop.stop()
+        if loop is not None and loop.is_running():
+            loop.call_soon_threadsafe(loop.stop)

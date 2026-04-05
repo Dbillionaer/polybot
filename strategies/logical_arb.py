@@ -3,6 +3,7 @@
 
 from loguru import logger
 
+from core.orderbook import extract_best_bid_ask
 from core.ws import PolyWebSocket
 from engine.execution import ExecutionEngine
 from strategies.base import BaseStrategy
@@ -59,7 +60,11 @@ class LogicalArbStrategy(BaseStrategy):
             bids = data.get("bids", [])
             asks = data.get("asks", [])
             if bids and asks:
-                mid = (float(bids[0][0]) + float(asks[0][0])) / 2
+                best_bid, best_ask = extract_best_bid_ask({"bids": bids, "asks": asks})
+                if best_bid is None or best_ask is None:
+                    logger.debug(f"[Logical-Arb] Skipping malformed book for {str(token_id)[:12]}…")
+                    return
+                mid = (best_bid + best_ask) / 2
                 self.prices[str(token_id)] = mid
                 self.check_sum_violations()
 
@@ -91,7 +96,8 @@ class LogicalArbStrategy(BaseStrategy):
                     dry_run=self.engine.dry_run,
                 )
 
-    def on_trade_update(self, _data: dict):
+    def on_trade_update(self, data: dict):
+        del data
         pass
 
     def run(self):

@@ -5,6 +5,7 @@ from collections import deque
 
 from loguru import logger
 
+from core.orderbook import extract_level_price, extract_level_size
 from core.ws import PolyWebSocket
 from engine.execution import ExecutionEngine
 from strategies.base import BaseStrategy
@@ -49,14 +50,26 @@ class MomentumStrategy(BaseStrategy):
         if not bids or not asks:
             return
 
-        bid_depth = sum(float(b[1]) for b in bids[:5])
-        ask_depth = sum(float(a[1]) for a in asks[:5])
+        bid_depth = 0.0
+        for bid_level in bids[:5]:
+            level_size = extract_level_size(bid_level)
+            if level_size is not None:
+                bid_depth += level_size
+
+        ask_depth = 0.0
+        for ask_level in asks[:5]:
+            level_size = extract_level_size(ask_level)
+            if level_size is not None:
+                ask_depth += level_size
         if ask_depth <= 0:
             return
 
         ratio = bid_depth / ask_depth
         if ratio > self.imbalance_ratio:
-            best_ask = float(asks[0][0])
+            best_ask = extract_level_price(asks[0])
+            if best_ask is None:
+                logger.debug(f"[HFM] Skipping malformed ask level for {market_id[:10]}…")
+                return
             logger.warning(
                 f"[HFM] BUY IMBALANCE on {market_id[:10]}… "
                 f"Ratio {ratio:.2f} → buying at {best_ask:.3f}"
@@ -69,7 +82,10 @@ class MomentumStrategy(BaseStrategy):
                     self.name, dry_run=self.engine.dry_run
                 )
         elif ratio < (1 / self.imbalance_ratio):
-            best_bid = float(bids[0][0])
+            best_bid = extract_level_price(bids[0])
+            if best_bid is None:
+                logger.debug(f"[HFM] Skipping malformed bid level for {market_id[:10]}…")
+                return
             logger.warning(
                 f"[HFM] SELL IMBALANCE on {market_id[:10]}… "
                 f"Ratio {ratio:.2f} → selling at {best_bid:.3f}"

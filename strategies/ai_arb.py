@@ -57,7 +57,8 @@ class AIArbStrategy(BaseStrategy):
         if bids and asks:
             self._current_price = (float(bids[0][0]) + float(asks[0][0])) / 2
 
-    def on_trade_update(self, _data: dict):
+    def on_trade_update(self, data: dict):
+        del data
         pass
 
     # ------------------------------------------------------------------
@@ -87,7 +88,11 @@ class AIArbStrategy(BaseStrategy):
                 ],
                 response_format={"type": "json_object"},
             )
-            data = json.loads(completion.choices[0].message.content)
+            content = completion.choices[0].message.content
+            if not isinstance(content, (str, bytes, bytearray)):
+                logger.error("[AI-Arb] Grok returned no JSON content.")
+                return None, ""
+            data = json.loads(content)
             return data.get("probability", 0.5), data.get("reasoning", "")
         except Exception as e:
             logger.error(f"[AI-Arb] Error querying Grok: {e}")

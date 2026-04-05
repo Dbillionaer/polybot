@@ -125,8 +125,9 @@ def start_health_check_server(circuit_breaker: CircuitBreaker, port: int = 8080)
         def _handle_get(self) -> None:
             """Respond to health-check requests with bot circuit-breaker status."""
             if self.path == "/health":
-                status = circuit_breaker.status_summary()
-                healthy = not status["tripped"]
+                raw_status = circuit_breaker.status_summary()
+                status = raw_status if isinstance(raw_status, dict) else {}
+                healthy = not bool(status.get("tripped"))
                 body = json.dumps({
                     "status": "ok" if healthy else "circuit_breaker_open",
                     **status,

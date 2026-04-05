@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from eth_account import Account
 from loguru import logger
 from py_clob_client.client import ClobClient
+from py_clob_client.clob_types import ApiCreds
 
 load_dotenv()
 
@@ -30,6 +31,9 @@ def initialize_clob_client():
     api_secret = os.getenv("POLY_API_SECRET")
     api_passphrase = os.getenv("POLY_API_PASSPHRASE")
 
+    if not pk or pk == "0x...":
+        raise ValueError("POLYGON_PRIVATE_KEY not set in .env")
+
     # Initialize with PK for L1 operations (signing)
     client = ClobClient(
         host=host,
@@ -52,7 +56,13 @@ def initialize_clob_client():
         api_passphrase = creds.api_passphrase
 
 
-    client.set_api_creds(api_key, api_secret, api_passphrase)
+    client.set_api_creds(
+        ApiCreds(
+            api_key=api_key,
+            api_secret=api_secret,
+            api_passphrase=api_passphrase,
+        )
+    )
     logger.info(f"CLOB Client initialized: {client.get_address()}")
 
     return client

@@ -114,14 +114,8 @@ class OperatorController:
             return None
 
     def _strategy_statuses(self) -> list[dict[str, Any]]:
-        operator_pause = (
-            self.execution_engine.get_operator_trading_status()
-            if self.execution_engine is not None
-            else {"paused": False, "reason": "", "paused_at": None}
-        )
-        telemetry = (
-            self.execution_engine.get_telemetry_snapshot() if self.execution_engine is not None else {}
-        )
+        operator_pause = self._operator_trading_status()
+        telemetry = self._telemetry_snapshot()
         recent_errors = telemetry.get("recent_errors", []) if isinstance(telemetry, dict) else []
 
         statuses: list[dict[str, Any]] = []
@@ -156,7 +150,7 @@ class OperatorController:
 
     def _health_snapshot(self) -> dict[str, Any]:
         execution_engine = self.execution_engine
-        websocket_status = self.ws.status_summary() if self.ws is not None else {}
+        websocket_status = self._websocket_status()
         return {
             "dry_run": bool(getattr(execution_engine, "dry_run", True)) if execution_engine else True,
             "circuit_breaker": (
@@ -164,10 +158,56 @@ class OperatorController:
             ),
             "websocket_connected": bool(websocket_status.get("is_connected")) if websocket_status else False,
             "last_websocket_message_at": websocket_status.get("last_message_at") if websocket_status else None,
-            "reconciliation_running": (
-                execution_engine.is_fill_reconciliation_running() if execution_engine else False
-            ),
+            "reconciliation_running": self._is_fill_reconciliation_running(),
         }
+
+    def _operator_trading_status(self) -> dict[str, Any]:
+        if self.execution_engine is None:
+            return {"paused": False, "reason": "", "paused_at": None}
+        status_fn = getattr(self.execution_engine, "get_operator_trading_status", None)
+        if not callable(status_fn):
+            return {"paused": False, "reason": "", "paused_at": None}
+        status = status_fn()
+        return status if isinstance(status, dict) else {"paused": False, "reason": "", "paused_at": None}
+
+    def _telemetry_snapshot(self) -> dict[str, Any]:
+        if self.execution_engine is None:
+            return {}
+        snapshot_fn = getattr(self.execution_engine, "get_telemetry_snapshot", None)
+        if not callable(snapshot_fn):
+            return {}
+        snapshot = snapshot_fn()
+        return snapshot if isinstance(snapshot, dict) else {}
+
+    def _websocket_status(self) -> dict[str, Any]:
+        if self.ws is None:
+            return {}
+        status_fn = getattr(self.ws, "status_summary", None)
+        if not callable(status_fn):
+            return {}
+        status = status_fn()
+        return status if isinstance(status, dict) else {}
+
+    def _is_fill_reconciliation_running(self) -> bool:
+        if self.execution_engine is None:
+            return False
+        running_fn = getattr(self.execution_engine, "is_fill_reconciliation_running", None)
+        if not callable(running_fn):
+            return False
+        return bool(running_fn())
+
+    def _pending_orders_snapshot(self) -> list[Any]:
+        if self.execution_engine is None:
+            return []
+        pending_fn = getattr(self.execution_engine, "get_pending_orders", None)
+        if not callable(pending_fn):
+            return []
+        pending_orders = pending_fn()
+        if isinstance(pending_orders, list):
+            return pending_orders
+        if isinstance(pending_orders, Iterable):
+            return list(pending_orders)
+        return []
 
     def _index_markets(self, markets: Iterable[dict[str, Any]]) -> None:
         for market in markets:
@@ -217,8 +257,14 @@ class OperatorController:
 
     def _load_recent_trades(self, limit: int = 10) -> list[dict[str, Any]]:
         with get_session() as session:
-            query = select(Trade).order_by(Trade.timestamp, Trade.id)
+            query = select(Trade)
             trades = list(session.exec(query).all())
+        trades.sort(
+            key=lambda trade: (
+                trade.timestamp or datetime.min.replace(tzinfo=timezone.utc),
+                trade.id or 0,
+            )
+        )
         trades.reverse()
 
         return [
@@ -254,7 +300,7 @@ class OperatorController:
                 "accepted_at": order.accepted_at.isoformat(),
                 "last_status": order.last_status,
             }
-            for order in self.execution_engine.get_pending_orders()
+            for order in self._pending_orders_snapshot()
         ]
 
     def get_status_snapshot(self) -> dict[str, Any]:
@@ -264,14 +310,8 @@ class OperatorController:
             mode = "LIVE"
 
         risk_snapshot = self._risk_snapshot()
-        operator_pause = (
-            execution_engine.get_operator_trading_status()
-            if execution_engine is not None
-            else {"paused": False, "reason": "", "paused_at": None}
-        )
-        telemetry = (
-            execution_engine.get_telemetry_snapshot() if execution_engine is not None else {}
-        )
+        operator_pause = self._operator_trading_status()
+        telemetry = self._telemetry_snapshot()
 
         return {
             "bot_name": self.bot_name,
@@ -283,17 +323,13 @@ class OperatorController:
                 "usdc_balance": self._usdc_balance(),
             },
             "strategies": self._strategy_statuses(),
-            "websocket": self.ws.status_summary() if self.ws is not None else None,
+            "websocket": self._websocket_status() if self.ws is not None else None,
             "circuit_breaker": (
                 self.circuit_breaker.status_summary() if self.circuit_breaker is not None else None
             ),
             "health": self._health_snapshot(),
             "execution": {
-                "reconciliation_running": (
-                    execution_engine.is_fill_reconciliation_running()
-                    if execution_engine is not None
-                    else False
-                ),
+                "reconciliation_running": self._is_fill_reconciliation_running(),
                 "operator_pause": operator_pause,
                 "pending_orders": self._pending_orders(),
                 "telemetry": telemetry,
@@ -307,7 +343,10 @@ class OperatorController:
         if self.execution_engine is None:
             return {"success": False, "message": "Execution engine unavailable."}
 
-        success = bool(self.execution_engine.cancel_all_open_orders())
+        cancel_fn = getattr(self.execution_engine, "cancel_all_open_orders", None)
+        if not callable(cancel_fn):
+            return {"success": False, "message": "Execution engine cancel API unavailable."}
+        success = bool(cancel_fn())
         message = "Canceled all open orders." if success else "Failed to cancel open orders."
         return {"success": success, "message": message}
 
@@ -315,8 +354,11 @@ class OperatorController:
         if self.execution_engine is None:
             return {"success": False, "message": "Execution engine unavailable."}
 
+        start_fn = getattr(self.execution_engine, "start_fill_reconciliation", None)
+        if not callable(start_fn):
+            return {"success": False, "message": "Fill reconciliation API unavailable."}
         started = bool(
-            self.execution_engine.start_fill_reconciliation(
+            start_fn(
                 poll_interval_seconds=poll_interval_seconds,
             )
         )
@@ -330,8 +372,11 @@ class OperatorController:
         if self.execution_engine is None:
             return {"success": False, "message": "Execution engine unavailable."}
 
-        was_running = self.execution_engine.is_fill_reconciliation_running()
-        self.execution_engine.stop_fill_reconciliation()
+        stop_fn = getattr(self.execution_engine, "stop_fill_reconciliation", None)
+        if not callable(stop_fn):
+            return {"success": False, "message": "Fill reconciliation API unavailable."}
+        was_running = self._is_fill_reconciliation_running()
+        stop_fn()
         message = (
             "Stopped fill reconciliation poller."
             if was_running
@@ -343,7 +388,10 @@ class OperatorController:
         if self.execution_engine is None:
             return {"success": False, "message": "Execution engine unavailable."}
 
-        self.execution_engine.pause_operator_trading(reason=reason)
+        pause_fn = getattr(self.execution_engine, "pause_operator_trading", None)
+        if not callable(pause_fn):
+            return {"success": False, "message": "Operator pause API unavailable."}
+        pause_fn(reason=reason)
         message = "Trading paused by operator."
         if reason.strip():
             message = f"{message} Reason: {reason.strip()}"
@@ -353,7 +401,10 @@ class OperatorController:
         if self.execution_engine is None:
             return {"success": False, "message": "Execution engine unavailable."}
 
-        self.execution_engine.resume_operator_trading()
+        resume_fn = getattr(self.execution_engine, "resume_operator_trading", None)
+        if not callable(resume_fn):
+            return {"success": False, "message": "Operator resume API unavailable."}
+        resume_fn()
         return {"success": True, "message": "Trading resumed by operator."}
 
     def manual_redeem(self) -> dict[str, Any]:

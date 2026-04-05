@@ -30,7 +30,6 @@ import threading
 from collections import deque
 from datetime import datetime, timedelta, timezone
 from typing import Any
-from typing import Deque
 
 from loguru import logger
 
@@ -91,7 +90,7 @@ class CircuitBreaker:
         self._trip_time: datetime | None = None
         self._consecutive_errors: int = 0
         # Rolling PnL events: list of (timestamp, pnl_delta)
-        self._pnl_window: Deque[tuple[datetime, float]] = deque()
+        self._pnl_window: deque[tuple[datetime, float]] = deque()
         self._last_total_pnl: float | None = None
         self._initial_bankroll: float = float(os.getenv("BANKROLL_USDC", "1000"))
 

@@ -8,6 +8,7 @@ load_dotenv()
 
 def verify_system():
     logger.info("Verifying system configurations...")
+    md = None
 
     # Check DB
     try:
@@ -35,11 +36,14 @@ def verify_system():
     try:
         api_key = os.getenv("FALCON_API_KEY")
         if api_key:
-            res = md.get_falcon_trade_history("0x56687bf447db6ffa42ffe2204a05edaa20f55839", window_days=1)
-            if res is not None:
-                logger.success("Falcon Analytics API: OK")
+            if md is None:
+                logger.error("Falcon Analytics API: MarketData unavailable because Gamma API initialization failed")
             else:
-                logger.error("Falcon Analytics API: KEY INVALID OR LIMIT EXCEEDED")
+                res = md.get_falcon_trade_history("0x56687bf447db6ffa42ffe2204a05edaa20f55839", window_days=1)
+                if res is not None:
+                    logger.success("Falcon Analytics API: OK")
+                else:
+                    logger.error("Falcon Analytics API: KEY INVALID OR LIMIT EXCEEDED")
         else:
             logger.warning("Falcon Analytics API: MISSING FALCON_API_KEY in .env")
     except Exception as e:
